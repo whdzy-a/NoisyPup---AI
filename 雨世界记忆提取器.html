@@ -1,0 +1,2883 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Noisy Pup 记忆提取器</title>
+<style>
+:root{
+  --bg:#f4f6f4; --surface:#ffffff; --surface2:#fafbfa;
+  --line:#e2e5e1; --line2:#eef0ec;
+  --ink:#1b211e; --ink2:#454f49; --muted:#87908a;
+  --teal:#2f6f66; --teal-soft:#e9f2f0; --teal-line:#cfe4e0;
+  --amber:#b9772e; --amber-soft:#fbf1e4; --amber-line:#f0dcc0;
+  --rose:#b1524a; --rose-soft:#fbecea; --rose-line:#f2d7d4;
+  --violet:#5f5590; --violet-soft:#efeef8; --violet-line:#dedcf0;
+  --blue:#3d6c9e; --blue-soft:#eaf0f7; --blue-line:#d7e3f0;
+  --r:14px;
+  --sh:0 1px 2px rgba(24,36,30,.05), 0 6px 20px -12px rgba(24,36,30,.25);
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:
+    radial-gradient(1200px 500px at 80% -10%, #e8f1ef 0%, rgba(232,241,239,0) 60%),
+    radial-gradient(900px 420px at 5% 0%, #f7f2e8 0%, rgba(247,242,232,0) 55%),
+    var(--bg);
+  color:var(--ink);
+  font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei","PingFang SC",sans-serif;
+  font-size:14px; line-height:1.6;
+  -webkit-font-smoothing:antialiased;
+}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace}
+button{font-family:inherit;font-size:13px;cursor:pointer}
+input,select{font-family:inherit;font-size:13px;color:var(--ink)}
+::selection{background:#cfe4e0}
+
+/* ---------- header ---------- */
+header{
+  position:sticky; top:0; z-index:40;
+  display:flex; align-items:center; gap:14px;
+  padding:12px 22px;
+  background:rgba(255,255,255,.82);
+  backdrop-filter:blur(12px) saturate(1.2);
+  border-bottom:1px solid var(--line);
+}
+.brand{display:flex;align-items:center;gap:11px;min-width:0}
+.logo{
+  width:34px;height:34px;border-radius:10px;flex:none;
+  background:linear-gradient(150deg,#3c8478,#26564f);
+  display:grid;place-items:center;color:#eaf4f1;box-shadow:0 4px 12px -6px #26564f;
+}
+.logo svg{width:19px;height:19px}
+.brand h1{font-size:15.5px;margin:0;font-weight:650;letter-spacing:.2px;white-space:nowrap}
+.brand .sub{font-size:11.5px;color:var(--muted);margin-top:-2px;white-space:nowrap}
+.spacer{flex:1}
+.src{position:relative}
+.src-chip{
+  display:flex;align-items:center;gap:7px;max-width:450px;
+  padding:6px 11px;border:1px solid var(--line);border-radius:999px;
+  background:var(--surface2);font-size:12px;color:var(--ink2);transition:.14s;
+}
+.src-chip:hover{background:#fff;border-color:#c9cfc9;box-shadow:var(--sh)}
+.src-chip .dot{width:7px;height:7px;border-radius:50%;background:var(--muted);flex:none;position:relative}
+.src-chip.live .dot{background:#4f9c74;box-shadow:0 0 0 3px #e4f2ea}
+.src-chip.live .dot::after{content:"";position:absolute;inset:-4px;border-radius:50%;border:1px solid #4f9c74;animation:pulse 2s infinite}
+.src-chip.warn .dot{background:var(--amber);box-shadow:0 0 0 3px var(--amber-soft)}
+.src-chip.err .dot{background:var(--rose);box-shadow:0 0 0 3px var(--rose-soft)}
+@keyframes pulse{0%{transform:scale(.6);opacity:.7}100%{transform:scale(1.8);opacity:0}}
+.src-chip b{font-weight:600;color:var(--ink)}
+.src-chip .file{font-weight:600;color:var(--ink);max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.src-chip .sync{color:var(--muted);white-space:nowrap;font-variant-numeric:tabular-nums}
+.src-chip .chev{width:12px;height:12px;color:var(--muted);flex:none;transition:.16s}
+.src-chip.open .chev{transform:rotate(180deg)}
+
+.src-panel{
+  position:absolute;right:0;top:calc(100% + 9px);width:356px;
+  background:#fff;border:1px solid var(--line);border-radius:14px;
+  box-shadow:0 26px 64px -30px rgba(20,30,26,.55);padding:14px 15px 13px;z-index:70;
+  max-width:calc(100vw - 28px);
+}
+.src-panel[hidden]{display:none}
+.sp-title{font-size:10.5px;letter-spacing:1.3px;text-transform:uppercase;color:var(--muted);font-weight:650;margin-bottom:7px}
+.sp-row{display:flex;gap:12px;justify-content:space-between;align-items:baseline;padding:4px 0;border-bottom:1px dashed var(--line2);font-size:12.5px}
+.sp-row .k{color:var(--muted);flex:none}
+.sp-row .v{text-align:right;color:var(--ink);word-break:break-all;font-weight:500}
+.sp-row .v.mono{font-family:ui-monospace,Consolas,monospace;font-size:11.5px;font-weight:400}
+.sp-path{padding:5px 0 6px;border-bottom:1px dashed var(--line2)}
+.sp-path .k{font-size:12.5px;color:var(--muted)}
+.sp-path div{margin-top:2px;font-size:11px;line-height:1.5;word-break:break-all;color:var(--ink2);user-select:all;cursor:copy}
+.sp-sep{height:10px}
+.sp-auto{display:flex;align-items:center;gap:7px;font-size:12.5px;padding:7px 9px;margin:2px 0 8px;background:var(--surface2);border:1px solid var(--line2);border-radius:9px;cursor:pointer;user-select:none}
+.sp-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+.sp-actions .btn{flex:1;justify-content:center}
+.sp-tip{margin-top:9px;font-size:11.5px;color:var(--muted);line-height:1.55}
+.sp-tip code{background:var(--surface2);border:1px solid var(--line2);padding:0 4px;border-radius:4px;font-size:11px}
+.sp-err{color:var(--rose)}
+
+.btn{
+  display:inline-flex;align-items:center;gap:6px;
+  padding:7px 13px;border-radius:9px;border:1px solid var(--line);
+  background:var(--surface);color:var(--ink2);
+  transition:.14s ease; white-space:nowrap;
+}
+.btn:hover{border-color:#c9cfc9;background:#fff;color:var(--ink);box-shadow:var(--sh)}
+.btn.primary{background:linear-gradient(180deg,#37796f,#2b6459);border-color:#2b6459;color:#f2f8f6;font-weight:600}
+.btn.primary:hover{background:linear-gradient(180deg,#3d8378,#2f6c60);color:#fff}
+.btn.ghost{background:transparent;border-color:transparent;color:var(--ink2)}
+.btn.ghost:hover{background:var(--teal-soft);border-color:var(--teal-line)}
+.btn.sm{padding:4px 9px;font-size:12px;border-radius:7px}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+
+/* ---------- layout ---------- */
+.layout{display:grid;grid-template-columns:296px minmax(0,1fr);gap:20px;padding:20px 22px 60px;align-items:start;max-width:1560px;margin:0 auto}
+aside{position:sticky;top:74px;max-height:calc(100vh - 96px);display:flex;flex-direction:column;gap:10px}
+main{min-width:0}
+
+/* ---------- sidebar ---------- */
+.side-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--sh);overflow:hidden}
+.side-head{padding:12px 14px 8px;display:flex;align-items:center;justify-content:space-between}
+.side-head .t{font-size:11px;letter-spacing:1.4px;text-transform:uppercase;color:var(--muted);font-weight:600}
+.side-head .n{font-size:11px;color:var(--muted)}
+.pup-list{overflow:auto;padding:4px 8px 8px;max-height:calc(100vh - 210px)}
+.pup{
+  display:flex;gap:10px;align-items:flex-start;
+  padding:9px 10px;border-radius:11px;border:1px solid transparent;
+  cursor:pointer;transition:.13s ease;position:relative;
+}
+.pup:hover{background:var(--surface2);border-color:var(--line2)}
+.pup.on{background:var(--teal-soft);border-color:var(--teal-line)}
+.pup.on::before{content:"";position:absolute;left:0;top:10px;bottom:10px;width:3px;border-radius:3px;background:var(--teal)}
+.ava{
+  width:30px;height:30px;border-radius:9px;flex:none;display:grid;place-items:center;
+  font-size:12px;font-weight:700;color:#fff;letter-spacing:-.5px;
+  background:linear-gradient(150deg,#4f9186,#31685f);
+}
+.pup .nm{font-weight:600;font-size:13.5px;line-height:1.25;display:flex;align-items:center;gap:5px}
+.pup .meta{font-size:11px;color:var(--muted);margin-top:1px;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.emod{width:6px;height:6px;border-radius:50%;display:inline-block;flex:none}
+.pup.on .nm{color:#1f514a}
+.mini-search{margin:0 10px 8px;display:flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:9px;padding:5px 9px;background:var(--surface2)}
+.mini-search input{border:0;outline:0;background:transparent;width:100%;font-size:12.5px}
+.mini-search svg{width:13px;height:13px;color:var(--muted);flex:none}
+
+.side-note{padding:10px 14px;border-top:1px dashed var(--line);font-size:11.5px;color:var(--muted);line-height:1.55}
+
+/* ---------- hero ---------- */
+.hero{
+  background:linear-gradient(150deg,#ffffff 0%,#fbfdfc 55%,#f3f8f6 100%);
+  border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--sh);
+  padding:18px 20px 16px;margin-bottom:14px;
+}
+.hero-top{display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap}
+.hero-ava{
+  width:56px;height:56px;border-radius:16px;flex:none;display:grid;place-items:center;
+  font-size:19px;font-weight:700;color:#fff;background:linear-gradient(150deg,#4f9186,#2c6058);
+  box-shadow:0 10px 22px -14px #2c6058;
+}
+.hero h2{margin:0;font-size:22px;font-weight:680;letter-spacing:.3px;display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.hero .line2{display:flex;gap:7px;flex-wrap:wrap;align-items:center;margin-top:6px}
+.chip{
+  display:inline-flex;align-items:center;gap:5px;padding:2px 9px;border-radius:999px;
+  font-size:11.5px;border:1px solid var(--line);background:var(--surface);color:var(--ink2);white-space:nowrap;
+}
+.chip.mono{font-family:ui-monospace,Consolas,monospace;letter-spacing:-.2px}
+.chip.t{background:var(--teal-soft);border-color:var(--teal-line);color:#25645c}
+.chip.a{background:var(--amber-soft);border-color:var(--amber-line);color:var(--amber)}
+.chip.r{background:var(--rose-soft);border-color:var(--rose-line);color:var(--rose)}
+.chip.v{background:var(--violet-soft);border-color:var(--violet-line);color:var(--violet)}
+.chip.b{background:var(--blue-soft);border-color:var(--blue-line);color:var(--blue)}
+.hero-actions{margin-left:auto;display:flex;gap:7px;flex-wrap:wrap;justify-content:flex-end;max-width:420px}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(112px,1fr));gap:10px;margin-top:16px}
+.stat{background:var(--surface);border:1px solid var(--line2);border-radius:11px;padding:9px 12px}
+.stat .k{font-size:10.5px;letter-spacing:.8px;text-transform:uppercase;color:var(--muted);font-weight:600}
+.stat .v{font-size:20px;font-weight:680;line-height:1.25;font-variant-numeric:tabular-nums}
+.stat .v small{font-size:11px;font-weight:500;color:var(--muted);margin-left:3px}
+
+/* ---------- tabs ---------- */
+.tabs{display:flex;gap:4px;margin:0 0 12px;border-bottom:1px solid var(--line);padding-bottom:0;overflow:auto}
+.tab{
+  border:0;background:transparent;color:var(--muted);padding:8px 13px;border-radius:9px 9px 0 0;
+  font-size:13px;position:relative;white-space:nowrap;
+}
+.tab:hover{color:var(--ink);background:rgba(255,255,255,.6)}
+.tab.on{color:var(--teal);font-weight:640}
+.tab.on::after{content:"";position:absolute;left:8px;right:8px;bottom:-1px;height:2px;background:var(--teal);border-radius:2px}
+.tab .cnt{font-size:11px;color:var(--muted);margin-left:5px;font-weight:500}
+
+/* ---------- panels ---------- */
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--sh);padding:16px 18px}
+.panel + .panel{margin-top:14px}
+.panel h3{margin:0 0 12px;font-size:13px;font-weight:650;letter-spacing:.3px;display:flex;align-items:center;gap:8px}
+.panel h3 .tag{font-size:10.5px;font-weight:600;color:var(--muted);letter-spacing:.8px;text-transform:uppercase;border:1px solid var(--line);padding:1px 7px;border-radius:999px}
+.hintline{font-size:12px;color:var(--muted);margin:-4px 0 10px}
+
+.kv{display:grid;grid-template-columns:repeat(auto-fit,minmax(322px,1fr));gap:6px 36px}
+.kv .row{display:flex;justify-content:space-between;gap:10px;border-bottom:1px dashed var(--line2);padding:5px 0;font-size:12.5px}
+.kv .row .k{color:var(--muted);white-space:nowrap}
+.kv .row .v{font-weight:600;text-align:right;word-break:break-word}
+
+.emo-box{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+.emo-now{font-size:17px;font-weight:650;display:flex;align-items:center;gap:8px}
+.emo-age{font-size:12px;color:var(--muted)}
+
+.bars{display:flex;flex-direction:column;gap:7px}
+.bar-row{display:grid;grid-template-columns:112px 1fr 42px;gap:10px;align-items:center;font-size:12px}
+.bar-row .lb{color:var(--ink2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bar-track{display:block;height:7px;border-radius:6px;background:var(--line2);overflow:hidden}
+.bar-fill{display:block;height:100%;border-radius:6px;background:linear-gradient(90deg,#79b3a7,#2f6f66)}
+.bar-row .n{text-align:right;color:var(--muted);font-variant-numeric:tabular-nums}
+
+.quote{font-size:12.5px;color:var(--ink2);background:var(--surface2);border-left:2px solid var(--teal-line);padding:6px 11px;border-radius:0 8px 8px 0;margin:6px 0}
+
+/* ---------- toolbar ---------- */
+.toolbar{
+  display:flex;gap:8px;flex-wrap:wrap;align-items:center;
+  background:var(--surface);border:1px solid var(--line);border-radius:var(--r);
+  padding:10px 12px;margin-bottom:12px;box-shadow:var(--sh);
+}
+.search{flex:1;min-width:180px;display:flex;align-items:center;gap:7px;border:1px solid var(--line);border-radius:9px;padding:6px 10px;background:var(--surface2)}
+.search:focus-within{border-color:var(--teal-line);background:#fff;box-shadow:0 0 0 3px var(--teal-soft)}
+.search input{border:0;background:transparent;outline:0;width:100%;font-size:13px}
+.search svg{width:14px;height:14px;color:var(--muted);flex:none}
+select{border:1px solid var(--line);border-radius:9px;padding:6px 9px;background:var(--surface);outline:0}
+select:focus{border-color:var(--teal-line)}
+.kind-chips{display:flex;gap:6px;flex-wrap:wrap}
+.kchip{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:3px 10px;font-size:12px;color:var(--ink2);transition:.13s}
+.kchip:hover{border-color:#c9cfc9}
+.kchip.on{border-color:#2f6f66;background:#2f6f66;color:#fff}
+.kchip .c{opacity:.65;font-size:11px;margin-left:3px}
+.tb-right{margin-left:auto;display:flex;gap:8px;align-items:center;font-size:12px;color:var(--muted)}
+
+/* ---------- memory cards ---------- */
+.mem-list{display:flex;flex-direction:column;gap:9px}
+.mem{
+  background:var(--surface);border:1px solid var(--line);border-radius:12px;
+  padding:11px 14px;transition:.14s ease;
+}
+.mem:hover{border-color:#cfd6cf;box-shadow:0 6px 18px -14px rgba(24,36,30,.5)}
+.mem-head{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:4px}
+.badge{font-size:11px;padding:1.5px 8px;border-radius:999px;font-weight:600;white-space:nowrap}
+.k0{background:var(--amber-soft);color:#96601c;border:1px solid var(--amber-line)}
+.k1{background:#f2f3f1;color:#6f7a72;border:1px solid #e4e7e3}
+.k2{background:var(--teal-soft);color:#25645c;border:1px solid var(--teal-line)}
+.k3{background:var(--violet-soft);color:#534a80;border:1px solid var(--violet-line)}
+.tagtxt{font-size:12px;color:var(--ink2);font-weight:600}
+.tagraw{font-size:11px;color:var(--muted);font-family:ui-monospace,Consolas,monospace}
+.mem .age{margin-left:auto;font-size:11.5px;color:var(--muted);white-space:nowrap;font-variant-numeric:tabular-nums}
+.mem .body{font-size:13.5px;line-height:1.65;color:var(--ink);white-space:pre-wrap;word-break:break-word}
+.mem .body.own{color:#1f4b45}
+.mem .body.empty{color:var(--muted);font-style:italic;font-size:12.5px}
+.mem .hint{font-size:12px;color:var(--muted);margin-top:5px;line-height:1.55}
+.mem .ref{font-size:12px;color:#5b6b62;margin-top:6px;padding:5px 10px;background:#f7faf8;border:1px dashed #d9e6df;border-radius:8px}
+.mem .ref b{color:#2f6f66;font-weight:600}
+.mem-foot{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-top:8px;padding-top:7px;border-top:1px dashed var(--line2);font-size:11px;color:var(--muted)}
+.mf{display:flex;align-items:center;gap:5px}
+.mbar{display:block;width:52px;height:5px;border-radius:4px;background:var(--line2);overflow:hidden}
+.mbar i{display:block;height:100%;border-radius:4px;background:linear-gradient(90deg,#8dbfb4,#2f6f66)}
+.mbar.warn i{background:linear-gradient(90deg,#e0b184,#b9772e)}
+.mem .idx{font-size:10.5px;color:#b3bab4;font-family:ui-monospace,Consolas,monospace}
+
+.empty-list{text-align:center;color:var(--muted);font-size:13px;padding:40px 0}
+
+/* ---------- chat ---------- */
+.chat{display:flex;flex-direction:column;gap:11px;padding:4px 2px}
+.msg{display:flex;gap:9px;max-width:86%}
+.msg.me{margin-left:auto;flex-direction:row-reverse}
+.msg .wh{width:26px;height:26px;border-radius:8px;flex:none;display:grid;place-items:center;font-size:11px;font-weight:700;color:#fff;background:linear-gradient(150deg,#7d8f86,#5d6d64)}
+.msg.me .wh{background:linear-gradient(150deg,#557fb0,#3d6c9e)}
+.bub{border:1px solid var(--line);background:var(--surface);border-radius:3px 12px 12px 12px;padding:8px 12px;font-size:13.5px;line-height:1.6;box-shadow:0 1px 2px rgba(24,36,30,.03)}
+.msg.me .bub{background:var(--blue-soft);border-color:var(--blue-line);border-radius:12px 3px 12px 12px;color:#274a6f}
+.msg.own .bub{background:var(--teal-soft);border-color:var(--teal-line);border-radius:3px 12px 12px 12px;color:#1f4b45}
+.msg.peer .bub{background:#f6f4fb;border-color:var(--violet-line);border-radius:3px 12px 12px 12px;color:#3d3758}
+.msg .bubwrap{min-width:0;max-width:100%}
+.msg .who2{font-size:11px;color:var(--muted);margin:0 2px 3px;display:flex;gap:6px;align-items:center;flex-wrap:wrap;line-height:1.3}
+.msg.me .who2{justify-content:flex-end}
+.msg .who2 b{font-weight:650}
+.msg .tochip{font-size:10.5px;background:var(--surface2);border:1px solid var(--line2);border-radius:999px;padding:0 6px;color:var(--ink2);white-space:nowrap}
+.chatbar{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:2px 0 14px}
+.chatinfo{margin-left:auto;font-size:11.5px;color:var(--muted)}
+.spkname{font-weight:650;opacity:.9}
+.bub .meta2{font-size:10.5px;color:var(--muted);margin-top:4px;display:flex;gap:8px;flex-wrap:wrap}
+.msg.me .bub .meta2{justify-content:flex-end}
+.silent{align-self:center;font-size:11.5px;color:var(--muted);background:var(--surface2);border:1px dashed var(--line);border-radius:999px;padding:3px 12px;max-width:80%;text-align:center}
+
+/* ---------- impressions ---------- */
+.imp-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:12px}
+.imp{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:13px 15px;box-shadow:var(--sh)}
+.imp-top{display:flex;align-items:flex-start;gap:10px}
+.imp .nm{font-weight:660;font-size:14.5px;line-height:1.3}
+.imp .tp{font-size:11px;color:var(--muted);font-family:ui-monospace,Consolas,monospace}
+.aff{margin:10px 0 6px}
+.aff-top{display:flex;justify-content:space-between;font-size:11.5px;color:var(--muted);margin-bottom:4px}
+.aff-track{position:relative;height:8px;border-radius:6px;background:var(--line2);overflow:hidden}
+.aff-track .mid{position:absolute;left:50%;top:0;bottom:0;width:1px;background:#cdd4cd}
+.aff-fill{position:absolute;top:0;bottom:0;border-radius:4px}
+.aff-fill.pos{left:50%;background:linear-gradient(90deg,#a9d3c8,#2f6f66)}
+.aff-fill.neg{right:50%;background:linear-gradient(270deg,#e8b3ae,#b1524a)}
+.imp .mood{font-size:13px;font-weight:600;margin:7px 0 3px}
+.imp .desc{font-size:12.5px;color:var(--ink2);line-height:1.6}
+.imp .cnts{display:flex;gap:6px;flex-wrap:wrap;margin-top:9px}
+.cnt-chip{font-size:11px;background:var(--surface2);border:1px solid var(--line2);border-radius:7px;padding:2px 7px;color:var(--ink2)}
+.cnt-chip.click{cursor:pointer}
+.cnt-chip.click:hover{border-color:var(--teal);color:var(--teal)}
+.cnt-chip b{color:var(--ink);font-weight:650}
+.cnt-chip.neg{background:var(--rose-soft);border-color:var(--rose-line);color:#7d3b35}
+.imp .ref2{margin-top:10px;padding:8px 10px;border-radius:9px;background:#f7faf8;border:1px dashed #d9e6df;font-size:12px;color:#4d5f57;line-height:1.6}
+.imp .ref2 .ttl{font-size:10.5px;color:var(--muted);letter-spacing:.6px;margin-bottom:2px}
+
+/* ---------- raw ---------- */
+pre.raw{margin:0;max-height:620px;overflow:auto;background:#fbfcfb;border:1px solid var(--line2);border-radius:11px;padding:14px 16px;font-size:12px;line-height:1.65;color:#2b332e}
+pre.raw .k{color:#2f6f66}
+
+/* ---------- drop / toast ---------- */
+#drop{
+  position:fixed;inset:0;z-index:80;display:none;place-items:center;
+  background:rgba(232,241,239,.86);backdrop-filter:blur(6px);
+}
+#drop.on{display:grid}
+#drop .box{border:2px dashed #7aa9a0;border-radius:22px;padding:44px 64px;background:#fff;text-align:center;box-shadow:0 30px 80px -40px rgba(24,36,30,.5)}
+#drop .box h3{margin:0 0 6px;font-size:17px}
+#drop .box p{margin:0;color:var(--muted);font-size:13px}
+#toast{
+  position:fixed;left:50%;bottom:26px;transform:translate(-50%,20px);
+  background:#1f2a25;color:#eef5f2;padding:9px 16px;border-radius:999px;font-size:12.5px;
+  opacity:0;pointer-events:none;transition:.24s ease;z-index:90;box-shadow:0 10px 30px -12px rgba(0,0,0,.5)
+}
+#toast.on{opacity:1;transform:translate(-50%,0)}
+#empty{padding:80px 20px;text-align:center}
+#empty .big{font-size:17px;font-weight:650;margin-bottom:6px}
+#empty p{color:var(--muted);margin:0 0 18px}
+.foot{padding:26px 4px 0;font-size:11.5px;color:var(--muted);line-height:1.7}
+.foot code{background:var(--surface2);border:1px solid var(--line2);padding:1px 5px;border-radius:5px;font-size:11px}
+@media (max-width:1000px){
+  .layout{grid-template-columns:1fr}
+  aside{position:static;max-height:none}
+  .pup-list{max-height:280px}
+}
+
+/* ---------- journey（旅程日志） ---------- */
+.jv-bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:0 0 14px}
+.jv-chip{font-size:12px;padding:4px 10px;border-radius:999px;border:1px solid var(--line2);background:#fff;color:var(--ink2);cursor:pointer}
+.jv-chip.on{background:#1f2a25;color:#eef5f2;border-color:#1f2a25}
+.jv-list{display:flex;flex-direction:column;gap:8px}
+.jv-row{display:grid;grid-template-columns:62px 84px 1fr;gap:10px;padding:9px 12px;border:1px solid var(--line2);border-radius:11px;background:#fff}
+.jv-t{font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}
+.jv-k{font-size:11.5px;font-weight:650;color:#2f6f66}
+.jv-b{font-size:12.8px;line-height:1.62;color:#26302b;min-width:0;word-break:break-word}
+.jv-row.see .jv-k{color:#3d6b8f}
+.jv-row.ai .jv-k{color:#7a5aa0}
+.jv-row.verdict .jv-k,.jv-row.impr .jv-k{color:#b1653c}
+.jv-row.mem .jv-k{color:#6b7280}
+.jv-row.name .jv-k{color:#a06a2c}
+.jv-sub{font-size:11.5px;color:var(--muted);margin-top:3px}
+.jv-pre{margin:6px 0 0;white-space:pre-wrap;font-size:11.5px;line-height:1.55;background:#fbfcfb;border:1px dashed var(--line2);border-radius:8px;padding:8px 10px;max-height:260px;overflow:auto}
+.jv-empty{padding:56px 20px;text-align:center;color:var(--muted);line-height:1.9}
+
+/* ---------- 对话模式 ---------- */
+.dlg-list{display:flex;flex-direction:column;gap:12px}
+.dlg{border:1px solid var(--line2);border-radius:12px;background:var(--surface);padding:9px 12px 11px;box-shadow:var(--sh)}
+.dlg-h{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums;margin-bottom:7px}
+.dlg-body{display:flex;flex-direction:column;gap:7px}
+.dlg-turn{display:flex;gap:8px;max-width:88%;align-items:flex-start}
+.dlg-turn.them{align-self:flex-start}
+.dlg-turn.me{align-self:flex-end}
+.dlg-who{font-size:11.5px;color:var(--muted);white-space:nowrap;padding-top:6px}
+.dlg-bub{font-size:13px;line-height:1.62;padding:7px 11px;border-radius:11px;border:1px solid var(--line2);background:var(--surface2);color:var(--ink2);word-break:break-word}
+.dlg-turn.me .dlg-bub{background:var(--teal-soft);border-color:var(--teal-line);color:#22443f}
+.dlg-th{font-size:11.5px;line-height:1.55;color:var(--violet);background:var(--violet-soft);border-left:2px solid var(--violet-line);border-radius:0 8px 8px 0;padding:5px 9px}
+.dlg-th .dlg-meta{color:var(--muted);margin-left:6px}
+.dlg-note{align-self:center;font-size:11px;color:var(--muted);background:var(--surface2);border:1px dashed var(--line);border-radius:999px;padding:2px 9px}
+.jv-hint{font-size:11.5px;color:var(--muted)}
+.dlg-inner{font-size:11.5px;line-height:1.55;color:var(--muted);padding:0 2px}
+/* ---------- 日志对话 ---------- */
+.jd-head{font-size:11px;color:var(--amber);font-weight:650;letter-spacing:.2px;margin-bottom:2px}
+.jd-mark{font-size:11.5px;line-height:1.6;color:var(--ink2);background:var(--surface2);border:1px dashed var(--line);border-radius:8px;padding:4px 9px}
+.jd-mark.mem{color:var(--ink2)}
+.jd-mark.impr{color:var(--teal);border-color:var(--teal-line);background:var(--teal-soft)}
+.jd-mark.forget{color:var(--rose);border-color:var(--rose-line);background:var(--rose-soft)}
+.jd-mark.verdict{color:var(--violet);border-color:var(--violet-line);background:var(--violet-soft)}
+.jd-mark.name{color:var(--amber);border-color:var(--amber-line);background:var(--amber-soft)}
+.chip.warn{background:var(--amber-soft);border-color:var(--amber-line);color:var(--amber);display:inline-flex;align-items:center;gap:5px}
+.chip.warn .x{cursor:pointer;font-weight:700;color:var(--amber)}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <div class="logo">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 3a4.5 4.5 0 0 0-4.5 4.5v1.2A3.8 3.8 0 0 0 5 12.3c0 1.1.45 2.1 1.18 2.82A3.9 3.9 0 0 0 9.4 21h5.2a3.9 3.9 0 0 0 3.22-5.88A3.95 3.95 0 0 0 19 12.3a3.8 3.8 0 0 0-2.5-3.6V7.5A4.5 4.5 0 0 0 12 3Z"/>
+        <path d="M12 3v18"/>
+      </svg>
+    </div>
+    <div>
+      <h1>Noisy Pup 记忆提取器</h1>
+      <div class="sub">解析 memories.json · 按角色查看与导出</div>
+    </div>
+  </div>
+  <div class="spacer"></div>
+  <div class="src" id="srcWrap">
+    <button class="src-chip" id="srcChip" aria-haspopup="true" aria-expanded="false" title="数据来源与自动刷新（点击查看）">
+      <span class="dot"></span>
+      <span class="file" id="srcTxt">未载入</span>
+      <span class="sync" id="srcSync">—</span>
+      <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+    </button>
+    <div class="src-panel" id="srcPanel" hidden>
+      <div class="sp-title">数据来源 / 自动刷新</div>
+      <div class="sp-row"><span class="k">方式</span><span class="v" id="spMode">—</span></div>
+      <div class="sp-row"><span class="k">文件</span><span class="v" id="spFile">—</span></div>
+      <div class="sp-row"><span class="k">内容</span><span class="v" id="spCount">—</span></div>
+      <div class="sp-path"><span class="k">路径</span><div class="mono" id="spPath" title="点击复制">—</div></div>
+      <div class="sp-row"><span class="k">文件修改</span><span class="v" id="spMtime">—</span></div>
+      <div class="sp-row"><span class="k">上次同步</span><span class="v" id="spSync">—</span></div>
+      <div class="sp-sep"></div>
+      <label class="sp-auto"><input type="checkbox" id="spAuto" checked> 文件一变就自动刷新</label>
+      <div class="sp-row" style="border-bottom:0">
+        <span class="k">检查间隔</span>
+        <select id="spInterval">
+          <option value="1">1 秒</option>
+          <option value="2" selected>2 秒</option>
+          <option value="5">5 秒</option>
+          <option value="10">10 秒</option>
+        </select>
+      </div>
+      <div class="sp-actions">
+        <button class="btn sm" id="spRefresh">立即刷新</button>
+        <button class="btn sm" id="spBind">重新绑定</button>
+        <button class="btn sm" id="spUnbind">解除</button>
+      </div>
+      <div class="sp-tip" id="spTip"></div>
+    </div>
+  </div>
+  <button class="btn" id="btnOpen">打开文件</button>
+  <div class="src" id="jWrap">
+    <button class="src-chip" id="jChip" aria-haspopup="true" aria-expanded="false" title="旅程日志来源与自动刷新（点击查看）">
+      <span class="dot"></span>
+      <span class="file" id="jTxt">旅程日志</span>
+      <span class="sync" id="jSync">—</span>
+      <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+    </button>
+    <div class="src-panel" id="jPanel" hidden>
+      <div class="sp-title">旅程日志来源 / 自动刷新</div>
+      <div class="sp-row"><span class="k">方式</span><span class="v" id="jMode">—</span></div>
+      <div class="sp-row"><span class="k">文件</span><span class="v" id="jFile">—</span></div>
+      <div class="sp-row"><span class="k">事件</span><span class="v" id="jCount">—</span></div>
+      <div class="sp-row"><span class="k">文件修改</span><span class="v" id="jMtime">—</span></div>
+      <div class="sp-sep"></div>
+      <label class="sp-auto"><input type="checkbox" id="jAuto" checked> 文件一变就自动刷新</label>
+      <div class="sp-actions">
+        <button class="btn sm" id="jRefresh">立即刷新</button>
+        <button class="btn sm" id="jBind">绑定文件</button>
+        <button class="btn sm" id="jUnbind">解除</button>
+      </div>
+      <div class="sp-tip" id="jTip"></div>
+    </div>
+  </div>
+  <button class="btn primary" id="btnFolder">一键载入（选模组文件夹）</button>
+  <input type="file" id="folderInput" webkitdirectory directory multiple hidden>
+  <button class="btn" id="btnJourney">载入旅程日志</button>
+  <input type="file" id="journeyInput" accept=".jsonl,.txt,application/json" hidden>
+  <button class="btn primary" id="btnZip">打包导出</button>
+  <input type="file" id="fileInput" accept=".json,application/json" hidden>
+</header>
+
+<div class="layout">
+  <aside>
+    <div class="side-card">
+      <div class="side-head">
+        <div class="t">猫崽 / 角色</div>
+        <div class="n" id="pupCount">—</div>
+      </div>
+      <div class="mini-search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <input id="pupFilter" placeholder="按名字筛选…">
+      </div>
+      <div class="pup-list" id="pupList"></div>
+      <div class="side-note" id="sideNote">拖一个 <span class="mono">memories.json</span> 到窗口任意位置即可解析。</div>
+    </div>
+  </aside>
+  <main id="main"></main>
+</div>
+
+<div id="drop"><div class="box"><h3>松手即可读取</h3><p>拖 memories.json、journey-*.jsonl，或者整个「Noisy Pup-AI」文件夹<br>（拖文件夹时会自动挑最新的那份日志）</p></div></div>
+<div id="toast"></div>
+
+<script>
+const MAPS = {"creature":{"Angler":"琵琶鱼","Aquapede":"水蜈蚣","Barnacle":"藤壶","Basilisk":"蛇怪蜥蜴","BigJellyFish":"巨型水母","BigMoth":"大蛾","BigNeedleWorm":"大面条蝇","BigSpider":"狼蛛","BlackLizard":"黑蜥蜴","BlizzardLizard":"暴雪蜥蜴","BlueLizard":"蓝蜥蜴","BrotherLongLegs":"黄长腿菌","CaramelLizard":"焦糖蜥蜴","Centipede":"蜈蚣","Centiwing":"飞蜈蚣","Cicada":"蝉乌贼","CicadaA":"蝉乌贼","Creature":"什么东西","CyanLizard":"青蜥蜴","DaddyLongLegs":"蓝长腿菌","Deer":"雨鹿","Drone":"电路蟹","DropBug":"落网虫","Echo":"回响","EelLizard":"鳗蜥蜴","EggBug":"蛋虫","FireBug":"火虫","Fly":"蝠蝇","Frog":"青蛙","GreenLizard":"绿蜥蜴","Guardian":"守卫","Hazer":"墨鱼","HunterDaddy":"猎手长腿菌","IndigoLizard":"靛蓝蜥蜴","Inspector":"监察者","JellyFish":"水母","JetFish":"蛙鱼","JungleLeech":"丛林水蛭","KingVulture":"魔王鹫","LanternMouse":"光鼠","Leech":"红水蛭","Loach":"泥鳅","MirosBird":"钢鸟","MirosVulture":"钢秃鹫","MonsterKelp":"红树","MothGrub":"蛾螬","MotherSpider":"蛛母","Noodlefly":"成年面条蝇","Overseer":"监视者","PeachLizard":"桃蜥蜴","PinkLizard":"粉蜥蜴","Player":"猫妈妈","PolePlant":"拟态草","RainDeer":"雨鹿","Rat":"老鼠","RedCentipede":"烈焰蜈蚣","RedLizard":"烈焰蜥蜴","Salamander":"蝾螈","Scavenger":"拾荒者","ScavengerElite":"精英拾荒者","ScavengerKing":"拾荒者酋长","SeaLeech":"海水蛭","SkyWhale":"天空鲸","SlugNPC":"蛞蝓猫幼崽","Slugcat":"猫","Slugpup":"同伴","SmallCentipede":"幼年蜈蚣","SmallCentiwing":"幼年飞蜈蚣","SmallMoth":"小蛾","SmallNeedleWorm":"小面条蝇","Snail":"波动龟","Spider":"小蜘蛛","SpitterSpider":"烈焰狼蛛","Stowaway":"偷渡者","StrawberryLizard":"草莓蜥蜴","Tardigrade":"水熊虫","TentaclePlant":"触手植物","TerrorLongLegs":"紫长腿菌","TrainLizard":"火车蜥蜴","TubeWorm":"管虫","VoidWorm":"虚空蠕虫","Vulture":"秃鹫","VultureGrub":"射线虫","WhiteLizard":"白蜥蜴","Worm":"垃圾虫","WormGrass":"舌草","Yeek":"跃客","YellowLizard":"金蜥蜴"},"item":{"BallToy":"玩具球","Batnip":"蝙蝠草","BlueFruit":"蓝果","Boomerang":"回旋镖","BubbleGrass":"气泡草","DandelionPeach":"蒲公英桃","DangleFruit":"蓝果","DataPearl":"珍珠","EggBugEgg":"蛋虫卵","ElectricSpear":"电矛","EnergyCell":"质量稀释电池","ExplosiveSpear":"炸矛","FireEgg":"火虫卵","FireSpriteLarva":"火精灵幼体","FirecrackerPlant":"鞭炮草","FlareBomb":"闪光果","FlyLure":"蝠蝇草","GlowWeed":"发光果","GooieDuck":"悬垂霉菌","GraffitiBomb":"涂鸦炸弹","HellSpear":"火矛","JellyFish":"水母","KarmaFlower":"业力花","KingMask":"酋长面具","Lantern":"灯笼","LillyPuck":"百合花灯","MoonCloak":"斗篷","Mushroom":"迷幻菇","NeedleEgg":"面条蝇卵","OracleSwarmer":"神经元","OverseerCarcass":"监视者眼球","Pomegranate":"石榴","PuffBall":"烟雾果","Rifle":"玩笑步枪","Rock":"石头","RottenDangleFruit":"腐化蓝果","RottenSeedCob":"腐化爆米花","ScavengerBomb":"手雷","Seed":"种子","SeedCob":"爆米花","SingularityBomb":"奇点炸弹","SlimeMold":"黏菌","SoftToy":"毛绒玩偶","Spear":"矛","SpinToy":"陀螺","SporePlant":"蜂巢","VultureMask":"秃鹫面具","WaterNut":"泡水果","WeirdToy":"奇怪的玩具"},"species":{"Artificer":"工匠","Gourmand":"饕餮","Hunter":"猎手","Inv":"怪猫","Monk":"僧侣","Nightcat":"夜猫","Red":"猎手","Rivulet":"溪流","Saint":"圣徒","Slugpup":"小猫","Spearmaster":"矛大师","Survivor":"求生者","Watcher":"观望者","White":"求生者","Yellow":"僧侣"},"region":{"CC":"烟囱顶篷","DM":"天空岛","DS":"排水系统","GW":"垃圾堆","HI":"工业区","LF":"农场阵列","LM":"月球","OE":"外域","SB":"地下通道","SH":"阴影城堡","SI":"天空岛","SL":"海岸线","SS":"天空群岛","SU":"郊区","UW":"地底"},"att":{"Aquapede":{"f":"恐惧","s":4,"v":"水里的长虫，电得整片水都亮起来。看到它要远离水。","c":"敌对"},"BigJellyFish":{"f":"恐惧","s":4,"v":"大得像一间屋子。我绕着它走，怕它突然亮起来。","c":"敌对"},"BigSpider":{"f":"恐惧","s":3,"v":"八条腿，会把我举起来。我讨厌被举起来。","c":"敌对"},"BlackLizard":{"f":"恐惧","s":4,"v":"它看不见我。可我只要发出一点声音，它立刻就知道我在哪。","c":"敌对"},"BlueLizard":{"f":"恐惧","s":4,"v":"会突然爬墙壁，但是很脆弱，躲在哪里都不安全，不如把它打败。","c":"敌对"},"BrotherLongLegs":{"f":"恐惧","s":4,"v":"一团会走的黄色毛线团，碰到就疼。我从来不靠近。","c":"敌对"},"CaramelLizard":{"f":"恐惧","s":3,"v":"肥肥的，会朝我吐口水，黏黏的，甩不掉。偶尔还会跳起来咬我。","c":"敌对"},"Centipede":{"f":"恐惧","s":3,"v":"长长的，带电。我咬它一口会被电得跳起来。","c":"敌对"},"Centiwing":{"f":"恐惧","s":3,"v":"会飞的那种，掉下来的火花亮亮的，我不敢接。","c":"敌对"},"Cicada":{"f":"好玩","s":4,"v":"抱住它能飞一点点，就是它老想把我甩下去。","c":"中立"},"CicadaA":{"f":"好玩","s":4,"v":"抱住它能飞一点点，就是它老想把我甩下去。","c":"中立"},"CyanLizard":{"f":"恐惧","s":3,"v":"会从墙上弹过来，还会爬墙，躲在哪里都会被逮住，快跑啊！","c":"敌对"},"DaddyLongLegs":{"f":"恐惧","s":5,"v":"比黄的还大。妈妈说，被它抓住就再也回不了家。","c":"敌对"},"Deer":{"f":"敬畏 · 好奇","s":3,"v":"好高好高，腿像柱子。它低头舔我的时候，我差点被舔倒。","c":"中立"},"DropBug":{"f":"恐惧","s":5,"v":"天花板上那块木头突然变成一个虫子——我最怕这个。","c":"敌对"},"Echo":{"f":"敬畏","s":5,"v":"一个金色的影子。碰一下我的脑袋，世界就亮了一层。它说话我听不懂。","c":"特殊"},"EelLizard":{"f":"恐惧","s":3,"v":"在水里游的像蛇一样的蜥蜴。我一低头，它就在脚边，从水里冒出来看我。","c":"敌对"},"EggBug":{"f":"想吃","s":4,"v":"圆滚滚的，打它会掉蛋。妈妈说不要欺负它，可蛋真好吃。","c":"可食用"},"FireBug":{"f":"恐惧 · 想吃","s":3,"v":"浑身冒火的小虫。打它会掉红色的蛋，那蛋会炸。","c":"特殊"},"Fly":{"f":"想吃","s":3,"v":"飞来飞去的小点心，跳一下就抓到了。","c":"可食用"},"GreenLizard":{"f":"恐惧","s":3,"v":"大绿蜥蜴，走路咚咚响。非常重，咬起我来可疼了，我可不行靠近它。","c":"敌对"},"Guardian":{"f":"敬畏 · 恐惧","s":4,"v":"很高很高，没有脸。它不让我过去，可它没有追我。","c":"特殊"},"Hazer":{"f":"好玩","s":4,"v":"捏一下喷出一团黑粘液，什么都看不见。很好用，也很好玩。","c":"可食用"},"HunterDaddy":{"f":"恐惧","s":5,"v":"妈妈以前的样子，变成了红线团……我不想看。","c":"特殊"},"Inspector":{"f":"恐惧","s":4,"v":"三个脑袋的大眼睛。它不怎么理我，但是我还是害怕。","c":"中立"},"JellyFish":{"f":"想吃 · 警惕","s":3,"v":"会电人的果冻。我不敢咬，可妈妈说饿了就得吃。","c":"可食用"},"JetFish":{"f":"好玩","s":4,"v":"在水里拽着我跑，比我自己游快多了。就是方向不由我。","c":"中立"},"JungleLeech":{"f":"厌恶","s":4,"v":"比红水蛭更黏。吸住我以后，我会慢慢变虚。","c":"敌对"},"KingVulture":{"f":"恐惧","s":5,"v":"比秃鹫还大，头上两根尖尖。快躲起来啊，别被它的尖尖扎到了！","c":"敌对"},"LanternMouse":{"f":"喜爱","s":4,"v":"软软的、会发光的果子精。抱着它睡觉最舒服。","c":"中立"},"Leech":{"f":"厌恶","s":4,"v":"小小的红色软糖，一沾上就往我身上钻，甩都甩不掉。","c":"敌对"},"MirosBird":{"f":"恐惧","s":4,"v":"腿很长，跑起来像在敲铁皮。它啄一下，地上就有个洞。我可不想它逮住","c":"敌对"},"MirosVulture":{"f":"恐惧","s":5,"v":"钢鸟和秃鹫混在一起的样子。会飞，还会射东西，我最怕它。","c":"敌对"},"MonsterKelp":{"f":"恐惧","s":4,"v":"红色的软叶子，会突然卷起来。我被卷过一次，差点就被吃了。不过它只能看到动来动去的东西。","c":"敌对"},"MotherSpider":{"f":"恐惧","s":3,"v":"背上背着好多小蜘蛛。我打它一下，背上就散开了。","c":"敌对"},"Noodlefly":{"f":"警惕 · 恐惧","s":3,"v":"长长的，会飞。我碰过它的宝宝，它追了我一整条走廊。","c":"中立"},"Overseer":{"f":"好奇","s":3,"v":"一只黄色的小眼睛跟着我。它不咬人，可我总觉得它在给我打分。","c":"中立"},"PinkLizard":{"f":"恐惧","s":4,"v":"最常追我的那个，它会爬杆子，所以躲在杆子上也不安全。它跑不过我，可它咬人好疼。","c":"敌对"},"PolePlant":{"f":"警惕","s":4,"v":"长得像一根能爬的杆子……不能爬，不能爬，不能爬。","c":"敌对"},"RainDeer":{"f":"敬畏 · 好奇","s":3,"v":"好高好高，腿像柱子。它低头舔我的时候，我差点被舔倒。","c":"中立"},"RedCentipede":{"f":"恐惧","s":5,"v":"红得发亮的大家伙。妈妈说那不是食物，是灾难。","c":"敌对"},"RedLizard":{"f":"恐惧","s":5,"v":"远远听见那一声吼我就腿软。那是最可怕的猎手，只要一下就能咬死我。","c":"敌对"},"Salamander":{"f":"恐惧","s":3,"v":"水里的那个。我以为是鱼，结果它有牙。","c":"敌对"},"Scavenger":{"f":"警惕 · 珍贵","s":3,"v":"会用果子跟我换东西。它们很吵，有些会攻击我，有些会给我送礼物。","c":"中立"},"ScavengerElite":{"f":"警惕","s":3,"v":"穿得比别的拾荒者气派，手里的东西也更凶。","c":"中立"},"ScavengerKing":{"f":"敬畏 · 恐惧","s":4,"v":"坐在高台上的拾荒者，戴着有珍珠的面具。谁都不敢靠近它。","c":"特殊"},"SeaLeech":{"f":"厌恶","s":4,"v":"比红的大一点，咬住我腿的时候，整条腿都麻了。","c":"敌对"},"SlugNPC":{"f":"喜爱 · 依恋","s":5,"v":"跟我一样的小家伙。它害怕的时候会紧紧抓我的手。","c":"倾盆大雨生物·特殊"},"Slugcat":{"f":"依恋","s":5,"v":"这是我妈妈。她走路不快，但从来不会把我一个人丢下。","c":"蛞蝓猫"},"SmallCentipede":{"f":"想吃","s":3,"v":"小小一条，会电人，但也能吃。我一般都直接吞。","c":"可食用"},"SmallCentiwing":{"f":"好奇 · 恐惧","s":2,"v":"小小的飞行电蜈蚣，飞起来歪歪扭扭。很可爱，也很疼。","c":"可食用"},"SmallNeedleWorm":{"f":"想吃 · 警惕","s":3,"v":"小小的，会哭。我一碰它，它妈妈就来了。","c":"可食用"},"Snail":{"f":"好玩","s":4,"v":"敲一下会“嗡”的一声，把周围的东西都震开，很好玩。","c":"中立"},"Spider":{"f":"厌恶","s":4,"v":"一只不可怕。很多只就像黑色的水，会把我整个盖住。","c":"敌对"},"SpitterSpider":{"f":"恐惧","s":4,"v":"会吐毒镖。被毒镖射中以后，我就动不了了。","c":"敌对"},"Stowaway":{"f":"恐惧","s":4,"v":"天花板上垂下来几根线，抓住我就往上拉。","c":"敌对"},"StrawberryLizard":{"f":"警惕","s":3,"v":"小小红红的，会吐舌头黏住我。它黏住我的时候像一把夹子。","c":"敌对"},"TerrorLongLegs":{"f":"恐惧","s":5,"v":"紫色的黑线团，比蓝的还凶。它一来，整条走廊都在抖。","c":"敌对"},"TrainLizard":{"f":"恐惧","s":5,"v":"像一列会咬人的车。它冲过来的时候，地板都在响。","c":"特殊"},"TubeWorm":{"f":"好玩","s":5,"v":"捏一下它的肚子，就可以“咻”地飞出去。妈妈最喜欢这个。","c":"中立"},"VoidWorm":{"f":"敬畏 · 恐惧","s":5,"v":"黑色的大东西在里面游。我一点都不想靠近那个地方。","c":"特殊"},"Vulture":{"f":"恐惧","s":5,"v":"天上掉下来的黑影，连蜥蜴都害怕它。它抓我往天上飞，我要赶快找到狭窄的地方。","c":"敌对"},"VultureGrub":{"f":"想吃 · 警惕","s":2,"v":"它会告诉秃鹫我们在哪。要赶紧把它打死吃掉。","c":"可食用"},"WhiteLizard":{"f":"恐惧","s":5,"v":"趴在墙上跟墙一个颜色。我一回头，它就在我鼻子前面。","c":"敌对"},"Worm":{"f":"好奇 · 无聊","s":2,"v":"从洞里探出个头。我一靠近它就缩回去，永远碰不到。","c":"中立"},"WormGrass":{"f":"恐惧","s":4,"v":"地上那些细细的草，会突然站起来把我卷走。","c":"敌对"},"Yeek":{"f":"警惕","s":3,"v":"会到处跳来跳去，碰一下它还会蹦蹦跳跳地跑掉。","c":"中立"},"YellowLizard":{"f":"恐惧","s":4,"v":"它们总是一起叫，叫完就一起冲过来，像一群。","c":"敌对"},"BallToy":{"f":"好玩","s":5,"v":"会弹来弹去的小球。我扔了一下午。","c":"观望者物品"},"Boomerang":{"f":"好玩","s":5,"v":"扔出去会自己飞回来。我要伸手接，接不到就砸我的脸。","c":"观望者物品"},"BubbleGrass":{"f":"珍贵","s":3,"v":"捏一下会鼓起来，丢出去还会飘起了。能让我在水里多待一会儿。","c":"原版物品"},"DandelionPeach":{"f":"想吃 · 好玩","s":4,"v":"轻飘飘的，一碰就飞走。咬开里面全是黏黏的甜。","c":"倾盆大雨物品"},"DangleFruit":{"f":"想吃","s":5,"v":"甜甜的，挂在高处。够不到就用石头砸下来。","c":"原版物品"},"DataPearl":{"f":"珍贵 · 无聊","s":3,"v":"亮亮的圆球。我舔过，不好吃。可拾荒者超级喜欢它。","c":"原版物品"},"EggBugEgg":{"f":"想吃","s":4,"v":"从蛋虫身上掉下来的，小小一颗，一口一个。","c":"原版物品"},"ElectricSpear":{"f":"恐惧 · 珍贵","s":4,"v":"扎进去会“滋滋”放电，扎过的地方会亮一下。","c":"倾盆大雨物品"},"EnergyCell":{"f":"珍贵 · 好奇","s":5,"v":"很重，抱着它我就跳不动。可一按，我就能飞得很高。","c":"倾盆大雨物品"},"ExplosiveSpear":{"f":"好玩 · 恐惧","s":5,"v":"扔出去会“嘭”。我被吓哭过一次，后来就爱上了它。","c":"原版物品"},"FireEgg":{"f":"恐惧 · 想吃","s":3,"v":"红的，温的，剧烈摇晃就会粘在墙壁上，然后炸开。","c":"倾盆大雨物品"},"FireSpriteLarva":{"f":"想吃","s":3,"v":"从箱虫肚子里拽出来的小亮球，温温的，能吃。","c":"观望者物品"},"FirecrackerPlant":{"f":"好玩 · 恐惧","s":4,"v":"扔出去噼里啪啦。蜥蜴听了就跑，我也吓得一抖。","c":"原版物品"},"FlareBomb":{"f":"厌恶","s":3,"v":"一摔就亮。亮完我什么都看不见，还一直流眼泪。","c":"原版物品"},"FlyLure":{"f":"好奇 · 珍贵","s":3,"v":"红红的小草。它的叶子摇摇晃晃，一会儿就有蝠蝇来。","c":"原版物品"},"GlowWeed":{"f":"想吃 · 好奇","s":2,"v":"亮亮的草，一咬像是脆的空气和水，嚼起来像在吃一盏灯。","c":"倾盆大雨物品"},"GooieDuck":{"f":"想吃","s":3,"v":"挂在墙上一团。掰开会“噗”，有点臭，但很顶饿。","c":"倾盆大雨物品"},"GraffitiBomb":{"f":"好玩","s":4,"v":"爆开一团彩色的雾。我被染过一身，洗了好几天。","c":"观望者物品"},"HellSpear":{"f":"恐惧 · 珍贵","s":5,"v":"红色的尖，扎谁谁就烫的冒烟。我拿着它的时候，手一直在抖。","c":"倾盆大雨物品"},"KarmaFlower":{"f":"珍贵","s":4,"v":"我死掉的地方会长出它。妈妈说，那是第二次机会。","c":"原版物品"},"KingMask":{"f":"珍贵 · 恐惧","s":4,"v":"有角的壳。戴上它，所有拾荒者都跑光了。","c":"倾盆大雨物品"},"Lantern":{"f":"依恋 · 珍贵","s":5,"v":"暖暖的，亮亮的。抱着它睡觉，连噩梦都少了。","c":"原版物品"},"MoonCloak":{"f":"喜爱","s":3,"v":"一块软软的布。穿上妈妈说好看，可惜不是给我的。","c":"倾盆大雨物品"},"Mushroom":{"f":"好奇 · 喜爱","s":3,"v":"吃了以后世界变慢。妈妈的动作像在水里。","c":"原版物品"},"NeedleEgg":{"f":"喜爱","s":4,"v":"抱着它睡一觉，会孵出小小的面条蝇。但是它的妈妈不想我拿着它。","c":"原版物品"},"OracleSwarmer":{"f":"珍贵","s":5,"v":"白色的、会发光的小东西。吃掉以后，我一直在发光。","c":"原版物品"},"OverseerCarcass":{"f":"珍贵","s":4,"v":"会掉出来的一颗小眼睛，还拖着两根线。拾荒者很想要。","c":"原版物品"},"Pomegranate":{"f":"想吃","s":4,"v":"挂在墙与墙之间的大果子。砸开以后，能吃一整个循环。","c":"观望者物品"},"PuffBall":{"f":"珍贵","s":3,"v":"捏爆会冒烟。蜂巢闻了就睡着，我就能把它摘下来。那个大鹿喜欢吃它。","c":"原版物品"},"Rifle":{"f":"好玩","s":5,"v":"把东西塞进去，“砰”地打出来。我最喜欢塞珍珠。","c":"倾盆大雨物品"},"Rock":{"f":"好玩","s":3,"v":"我学会扔的第一件东西。砸蜥蜴的脑袋会“咚”一声。","c":"原版物品"},"ScavengerBomb":{"f":"恐惧 · 好玩","s":4,"v":"圆圆的，黑黑的，会炸。危险，我更希望是妈妈拿着它。","c":"原版物品"},"SeedCob":{"f":"想吃","s":5,"v":"用矛戳开，能吃一整天。我喜欢蹲在它下面吃到撑。","c":"原版物品"},"SingularityBomb":{"f":"恐惧","s":5,"v":"扔出去以后，周围的东西都被吸过去。它太可怕了，会杀死吸进去的东西。","c":"倾盆大雨物品"},"SlimeMold":{"f":"想吃","s":2,"v":"墙上会发光的一小坨，黏黏的。饿的时候什么都好吃。","c":"原版物品"},"SoftToy":{"f":"依恋","s":5,"v":"软软的，可以抱着睡觉。它比我大。","c":"观望者物品"},"Spear":{"f":"珍贵","s":4,"v":"长长的，会扎人。妈妈会拿它保护我，我也要拿他保护妈妈。","c":"原版物品"},"SpinToy":{"f":"好玩","s":4,"v":"转起来的时候，上面的图案会变。我盯着看会头晕。","c":"观望者物品"},"SporePlant":{"f":"厌恶 · 恐惧","s":4,"v":"会飞出一堆会咬人的小虫，把我黏在地上动不了。","c":"原版物品"},"VultureMask":{"f":"珍贵 · 恐惧","s":3,"v":"戴上它，蜥蜴会以为我是秃鹫。可我自己也害怕。","c":"原版物品"},"WaterNut":{"f":"想吃","s":4,"v":"要泡在水里才会“啵”一下打开。打开了才好吃。","c":"原版物品"},"WeirdToy":{"f":"恐惧 · 好奇","s":3,"v":"五个脑袋上都长着眼睛。捏一下它会叫。我有点怕它。","c":"观望者物品"}}};
+const SAMPLE = {"Version":1,"Game":"RainWorld","Pups":{"-1:8482":{"Name":"绿绒","Species":"Slugpup","FirstTick":11150,"LastSeenTick":15237,"CurrentEmotion":"无聊","EmotionAgeSeconds":5.15,"NamedByAi":true,"Counters":{},"RecentLines":["哈喽……哈喽。嗯，听到了。你就在那儿站着，也不动。","就这么待着啊……脚都不想挪了。…大猫老是不回头，也不知道在等谁。","走开就走开……反正脚底下也没感觉了，磨就磨吧。","就这么走啊走，脚底下都磨得没感觉了……大猫也不回头看看。","走开就走开……我是挡着你的路了吗？还是说你本来就打算自己走。","恶心——是说我吗？我身上又没沾什么东西………喂，大猫，你刚才那话是对谁说的呀？"],"LongMemory":[{"Kind":3,"Category":0,"EventTag":"PlayerSaid","Text":"哈喽","Hint":"玩家对你说：「哈喽」","SpeakerName":"你","Importance":0.7,"Salience":0.690672755,"AgeSeconds":299.9,"Strength":0.7834709,"RecallAgeSeconds":299.9,"RecallCount":0},{"Kind":1,"Category":0,"EventTag":"PlayerSaid","Text":"","Hint":"玩家（大猫）刚才对你说：「哈喽」。你想接一句。","SpeakerName":"绿绒","Importance":0.7,"Salience":0.690672755,"AgeSeconds":107.325,"Strength":1.0,"RecallAgeSeconds":6.6,"RecallCount":9},{"Kind":3,"Category":0,"EventTag":"PlayerSaid","Text":"我要打死你","Hint":"玩家对你说：「我要打死你」","SpeakerName":"你","Importance":0.7,"Salience":0.638172746,"AgeSeconds":247.325,"Strength":0.7467209,"RecallAgeSeconds":247.325,"RecallCount":0},{"Kind":3,"Category":0,"EventTag":"PlayerSaid","Text":"我要把你杀了吃肉","Hint":"玩家对你说：「我要把你杀了吃肉」","SpeakerName":"你","Importance":0.7,"Salience":0.6081728,"AgeSeconds":227.075,"Strength":0.725720942,"RecallAgeSeconds":227.075,"RecallCount":0},{"Kind":2,"Category":0,"EventTag":"PlayerSaid","Text":"吃我？我这么小，还不够塞牙缝吧——你到底尝过没有啊。","Hint":"","SpeakerName":"绿绒","Importance":0.7,"Salience":0.6081728,"AgeSeconds":225.475,"Strength":0.725720942,"RecallAgeSeconds":225.475,"RecallCount":0},{"Kind":3,"Category":0,"EventTag":"PlayerSaid","Text":"我","Hint":"玩家对你说：「我」","SpeakerName":"你","Importance":0.7,"Salience":0.6081728,"AgeSeconds":212.325,"Strength":0.725720942,"RecallAgeSeconds":212.325,"RecallCount":0},{"Kind":3,"Category":0,"EventTag":"PlayerSaid","Text":"恨你","Hint":"玩家对你说：「恨你」","SpeakerName":"你","Importance":0.7,"Salience":0.6081728,"AgeSeconds":207.5,"Strength":0.725720942,"RecallAgeSeconds":207.5,"RecallCount":0},{"Kind":3,"Category":0,"EventTag":"PlayerSaid","Text":"我讨厌你，你走开行不行啊","Hint":"玩家对你说：「我讨厌你，你走开行不行啊」","SpeakerName":"你","Importance":0.7,"Salience":0.6081728,"AgeSeconds":175.05,"Strength":0.725720942,"RecallAgeSeconds":175.05,"RecallCount":0},{"Kind":3,"Category":0,"EventTag":"PlayerSaid","Text":"滚啊","Hint":"玩家对你说：「滚啊」","SpeakerName":"你","Importance":0.7,"Salience":0.6081728,"AgeSeconds":162.725,"Strength":0.725720942,"RecallAgeSeconds":162.725,"RecallCount":0},{"Kind":3,"Category":0,"EventTag":"PlayerSaid","Text":"恶心的东西","Hint":"玩家对你说：「恶心的东西」","SpeakerName":"你","Importance":0.7,"Salience":0.6081728,"AgeSeconds":135.1,"Strength":0.725720942,"RecallAgeSeconds":135.1,"RecallCount":0},{"Kind":3,"Category":0,"EventTag":"PlayerSaid","Text":"我杀了你","Hint":"玩家对你说：「我杀了你」","SpeakerName":"你","Importance":0.7,"Salience":0.6081728,"AgeSeconds":117.85,"Strength":0.725720942,"RecallAgeSeconds":117.85,"RecallCount":0},{"Kind":3,"Category":0,"EventTag":"PlayerSaid","Text":"走开","Hint":"玩家对你说：「走开」","SpeakerName":"你","Importance":0.7,"Salience":0.6081728,"AgeSeconds":107.325,"Strength":0.725720942,"RecallAgeSeconds":107.325,"RecallCount":0},{"Kind":3,"Category":0,"EventTag":"PlayerSaid","Text":"恶心","Hint":"玩家对你说：「恶心」","SpeakerName":"你","Importance":0.7,"Salience":0.6081728,"AgeSeconds":99.525,"Strength":0.725720942,"RecallAgeSeconds":99.525,"RecallCount":0},{"Kind":2,"Category":0,"EventTag":"PlayerSaid","Text":"恶心——是说我吗？我身上又没沾什么东西………喂，大猫，你刚才那话是对谁说的呀？","Hint":"","SpeakerName":"绿绒","Importance":0.7,"Salience":0.6081728,"AgeSeconds":97.725,"Strength":0.88445735,"RecallAgeSeconds":6.6,"RecallCount":1}],"Impressions":{"-1:0":{"Spawner":-1,"Number":0,"Type":"Slugcat","Name":"你","Met":20,"Helped":0,"SavedThem":0,"Hurt":0,"Grabbed":0,"Killed":0,"Carried":0,"Played":0,"Fed":0,"Meowed":0,"Chatted":0,"Together":21,"Wronged":0,"Threatened":0,"Scolded":0,"Ignored":0,"Isolated":0,"GaveToy":0,"ToldStay":0,"ToldFollow":0,"FirstTick":3112,"LastTick":14392,"LastTogetherTick":14639}}},"-1:7131":{"Name":"雪跳","Species":"Slugpup","FirstTick":12074,"LastSeenTick":15360,"CurrentEmotion":"害怕","EmotionAgeSeconds":11.5,"NamedByAi":true,"Counters":{"isolated":1},"RecentLines":["它、它还在追——雪跳，你跑的时候看后面了吗？","大家保持距离，别被伤了！","大猫——你是最大的那种吗？比绿蜥蜴还大？…那你能驮着我去看上面的洞吗，就一下下。","被吃掉？什么、什么东西要吃你呀？…它长什么样——有牙吗？","大家保持距离，别被伤了！","被吃掉？什么、什么东西要吃你呀？…它长什么样——有牙吗？"],"LongMemory":[{"Kind":1,"Category":0,"EventTag":"See SlugNPC","Text":"","Hint":"我看见蛞蝓猫幼崽就在附近，它还没发现我。（我对它的感觉：跟我一样的小家伙。它害怕的时候会紧紧抓我的手。）","SpeakerName":"煤球","Importance":0.5,"Salience":0.5886259,"AgeSeconds":204.375,"Strength":1.0,"RecallAgeSeconds":204.375,"RecallCount":2},{"Kind":3,"Category":0,"EventTag":"See SlugNPC","Text":"那边那个……也是幼崽吧？…别出声，我先看看它往哪儿走。","Hint":"","SpeakerName":"蓝蛮","Importance":0.5,"Salience":0.5886259,"AgeSeconds":207.325,"Strength":0.712038159,"RecallAgeSeconds":207.325,"RecallCount":0},{"Kind":2,"Category":2,"EventTag":"Respond","Text":"它、它没发现我们吗？——你、你别凶它，好不好？","Hint":"","SpeakerName":"雪跳","Importance":0.55,"Salience":0.639898658,"AgeSeconds":202.75,"Strength":0.747929037,"RecallAgeSeconds":202.75,"RecallCount":0},{"Kind":3,"Category":2,"EventTag":"Respond","Text":"凶它干嘛，它又没扑上来……你倒是说说，它刚才往哪边挪了？","Hint":"","SpeakerName":"蓝蛮","Importance":0.55,"Salience":0.639898658,"AgeSeconds":197.65,"Strength":0.747929037,"RecallAgeSeconds":197.65,"RecallCount":0},{"Kind":2,"Category":2,"EventTag":"Respond","Text":"哪边……左边？还是往草里缩了？我、我没看清——它动得好慢。","Hint":"","SpeakerName":"雪跳","Importance":0.55,"Salience":0.587398648,"AgeSeconds":192.95,"Strength":0.7111791,"RecallAgeSeconds":192.95,"RecallCount":0},{"Kind":3,"Category":0,"EventTag":"PlayerSaid","Text":"我不是哦","Hint":"玩家对你说：「我不是哦」","SpeakerName":"你","Importance":0.7,"Salience":0.6986259,"AgeSeconds":191.075,"Strength":0.7890381,"RecallAgeSeconds":191.075,"RecallCount":0},{"Kind":3,"Category":0,"EventTag":"PlayerSaid","Text":"我是大猫","Hint":"玩家对你说：「我是大猫」","SpeakerName":"你","Importance":0.7,"Salience":0.6986259,"AgeSeconds":175.425,"Strength":0.7890381,"RecallAgeSeconds":175.425,"RecallCount":0},{"Kind":1,"Category":0,"EventTag":"PlayerSaid","Text":"","Hint":"玩家（大猫）刚才对你说：「我是大猫」。你想接一句。","SpeakerName":"雪跳","Importance":0.7,"Salience":0.6461259,"AgeSeconds":107.725,"Strength":1.0,"RecallAgeSeconds":107.725,"RecallCount":4},{"Kind":3,"Category":0,"EventTag":"PlayerSaid","Text":"大猫？那你会爬最高的管子吗？","Hint":"","SpeakerName":"蓝蛮","Importance":0.7,"Salience":0.6161259,"AgeSeconds":174.6,"Strength":0.731288135,"RecallAgeSeconds":174.6,"RecallCount":0},{"Kind":3,"Category":0,"EventTag":"PlayerSaid","Text":"对啊","Hint":"玩家对你说：「对啊」","SpeakerName":"你","Importance":0.7,"Salience":0.6161259,"AgeSeconds":165.25,"Strength":0.731288135,"RecallAgeSeconds":165.25,"RecallCount":0},{"Kind":3,"Category":0,"EventTag":"PlayerSaid","Text":"那管子那么滑，你摔下来过没有？摔了几次？","Hint":"","SpeakerName":"青跳跳","Importance":0.7,"Salience":0.6161259,"AgeSeconds":163.8,"Strength":0.731288135,"RecallAgeSeconds":163.8,"RecallCount":0},{"Kind":3,"Category":0,"EventTag":"PlayerSaid","Text":"我爬的很高","Hint":"玩家对你说：「我爬的很高」","SpeakerName":"你","Importance":0.7,"Salience":0.6161259,"AgeSeconds":153.7,"Strength":0.731288135,"RecallAgeSeconds":153.7,"RecallCount":0},{"Kind":2,"Category":0,"EventTag":"PlayerSaid","Text":"爬那么高——上面有啥？有能吃的东西吗！…那你会不会下不来呀……","Hint":"","SpeakerName":"雪跳","Importance":0.7,"Salience":0.6161259,"AgeSeconds":152.4,"Strength":0.731288135,"RecallAgeSeconds":152.4,"RecallCount":0},{"Kind":3,"Category":0,"EventTag":"PlayerSaid","Text":"有","Hint":"玩家对你说：「有」","SpeakerName":"你","Importance":0.7,"Salience":0.6161259,"AgeSeconds":146.125,"Strength":0.731288135,"RecallAgeSeconds":146.125,"RecallCount":0},{"Kind":3,"Category":0,"EventTag":"PlayerSaid","Text":"有？有什么——你倒是说清楚嘛！","Hint":"","SpeakerName":"蓝跳跳","Importance":0.7,"Salience":0.6161259,"AgeSeconds":144.975,"Strength":0.731288135,"RecallAgeSeconds":144.975,"RecallCount":0},{"Kind":3,"Category":0,"EventTag":"PlayerSaid","Text":"有吃的","Hint":"玩家对你说：「有吃的」","SpeakerName":"你","Importance":0.7,"Salience":0.6161259,"AgeSeconds":139.825,"Strength":0.731288135,"RecallAgeSeconds":139.825,"RecallCount":0},{"Kind":3,"Category":0,"EventTag":"PlayerSaid","Text":"我看到了","Hint":"玩家对你说：「我看到了」","SpeakerName":"你","Importance":0.7,"Salience":0.6161259,"AgeSeconds":120.575,"Strength":0.731288135,"RecallAgeSeconds":120.575,"RecallCount":0},{"Kind":3,"Category":0,"EventTag":"Fleeing","Text":"救我！","Hint":"","SpeakerName":"蓝跳跳","Importance":0.7,"Salience":0.6986259,"AgeSeconds":113.6,"Strength":0.7890381,"RecallAgeSeconds":113.6,"RecallCount":0},{"Kind":1,"Category":0,"EventTag":"Fleeing","Text":"","Hint":"有东西在追我，我正在拼命逃跑，很害怕。","SpeakerName":"雪跳","Importance":0.7,"Salience":0.6986259,"AgeSeconds":83.875,"Strength":0.962386847,"RecallAgeSeconds":83.875,"RecallCount":1},{"Kind":3,"Category":0,"EventTag":"PlayerSaid","Text":"快破","Hint":"玩家对你说：「快破」","SpeakerName":"你","Importance":0.7,"Salience":0.6161259,"AgeSeconds":107.725,"Strength":0.731288135,"RecallAgeSeconds":107.725,"RecallCount":0},{"Kind":3,"Category":0,"EventTag":"Fleeing","Text":"我不想被吃掉……","Hint":"","SpeakerName":"蓝蛮","Importance":0.7,"Salience":0.6461259,"AgeSeconds":98.95,"Strength":0.752288163,"RecallAgeSeconds":98.95,"RecallCount":0},{"Kind":2,"Category":2,"EventTag":"Respond","Text":"被吃掉？什么、什么东西要吃你呀？…它长什么样——有牙吗？","Hint":"","SpeakerName":"雪跳","Importance":0.55,"Salience":0.639898658,"AgeSeconds":93.65,"Strength":0.747929037,"RecallAgeSeconds":93.65,"RecallCount":0},{"Kind":3,"Category":0,"EventTag":"Fleeing","Text":"它在追我！","Hint":"","SpeakerName":"青跳跳","Importance":0.7,"Salience":0.6161259,"AgeSeconds":88.2,"Strength":0.731288135,"RecallAgeSeconds":88.2,"RecallCount":0},{"Kind":2,"Category":0,"EventTag":"Fleeing","Text":"大家保持距离，别被伤了！","Hint":"","SpeakerName":"雪跳","Importance":0.7,"Salience":0.6161259,"AgeSeconds":50.6,"Strength":0.731288135,"RecallAgeSeconds":50.6,"RecallCount":0}],"Impressions":{"-1:7132":{"Spawner":-1,"Number":7132,"Type":"Slugpup","Name":"同伴","Met":11,"Helped":0,"SavedThem":0,"Hurt":0,"Grabbed":0,"Killed":0,"Carried":0,"Played":0,"Fed":0,"Meowed":0,"Chatted":8,"Together":0,"Wronged":0,"Threatened":0,"Scolded":0,"Ignored":1,"Isolated":0,"GaveToy":0,"ToldStay":0,"ToldFollow":0,"FirstTick":7465,"LastTick":12663,"LastTogetherTick":0},"-1:0":{"Spawner":-1,"Number":0,"Type":"Slugcat","Name":"你","Met":9,"Helped":0,"SavedThem":0,"Hurt":0,"Grabbed":0,"Killed":0,"Carried":0,"Played":0,"Fed":0,"Meowed":0,"Chatted":0,"Together":13,"Wronged":0,"Threatened":0,"Scolded":0,"Ignored":0,"Isolated":1,"GaveToy":0,"ToldStay":0,"ToldFollow":0,"FirstTick":7465,"LastTick":11511,"LastTogetherTick":13679},"-1:7133":{"Spawner":-1,"Number":7133,"Type":"Slugpup","Name":"同伴","Met":6,"Helped":0,"SavedThem":0,"Hurt":0,"Grabbed":0,"Killed":0,"Carried":0,"Played":0,"Fed":0,"Meowed":0,"Chatted":3,"Together":0,"Wronged":0,"Threatened":0,"Scolded":0,"Ignored":0,"Isolated":0,"GaveToy":0,"ToldStay":0,"ToldFollow":0,"FirstTick":7555,"LastTick":11674,"LastTogetherTick":0},"-1:7134":{"Spawner":-1,"Number":7134,"Type":"Slugpup","Name":"同伴","Met":8,"Helped":0,"SavedThem":0,"Hurt":0,"Grabbed":0,"Killed":0,"Carried":0,"Played":0,"Fed":0,"Meowed":0,"Chatted":7,"Together":0,"Wronged":0,"Threatened":0,"Scolded":0,"Ignored":0,"Isolated":0,"GaveToy":0,"ToldStay":0,"ToldFollow":0,"FirstTick":7645,"LastTick":15735,"LastTogetherTick":0},"-1:7137":{"Spawner":-1,"Number":7137,"Type":"GreenLizard","Name":"绿蜥蜴","Met":3,"Helped":0,"SavedThem":0,"Hurt":0,"Grabbed":0,"Killed":0,"Carried":0,"Played":0,"Fed":0,"Meowed":0,"Chatted":0,"Together":0,"Wronged":0,"Threatened":0,"Scolded":0,"Ignored":0,"Isolated":0,"GaveToy":0,"ToldStay":0,"ToldFollow":0,"FirstTick":11295,"LastTick":13796,"LastTogetherTick":0}}},"-1:7132":{"Name":"蓝蛮","Species":"Slugpup","FirstTick":12663,"LastSeenTick":15518,"CurrentEmotion":"好奇","EmotionAgeSeconds":7.55,"NamedByAi":true,"Counters":{"isolated":1},"RecentLines":["那个总抓我的东西到底藏在哪条管子里……我得先去探探路。","啊啊啊啊啊啊啊！","喂！快来救我啊！","啊啊啊啊啊啊啊！","蓝蛮，你平时都往哪条管道钻？…带我去看看呗——我又不会拖后腿。","啊啊啊啊啊啊啊！"],"LongMemory":[{"Kind":2,"Category":0,"EventTag":"See SlugNPC","Text":"那边那个……也是幼崽吧？…别出声，我先看看它往哪儿走。","Hint":"","SpeakerName":"蓝蛮","Importance":0.5,"Salience":0.5794036,"AgeSeconds":207.325,"Strength":0.7055825,"RecallAgeSeconds":207.325,"RecallCount":0},{"Kind":3,"Category":2,"EventTag":"Respond","Text":"它、它没发现我们吗？——你、你别凶它，好不好？","Hint":"","SpeakerName":"雪跳","Importance":0.55,"Salience":0.6222788,"AgeSeconds":202.75,"Strength":0.735595167,"RecallAgeSeconds":202.75,"RecallCount":0},{"Kind":2,"Category":2,"EventTag":"Respond","Text":"凶它干嘛，它又没扑上来……你倒是说说，它刚才往哪边挪了？","Hint":"","SpeakerName":"蓝蛮","Importance":0.55,"Salience":0.6222788,"AgeSeconds":197.65,"Strength":0.735595167,"RecallAgeSeconds":197.65,"RecallCount":0},{"Kind":3,"Category":2,"EventTag":"Respond","Text":"哪边……左边？还是往草里缩了？我、我没看清——它动得好慢。","Hint":"","SpeakerName":"雪跳","Importance":0.55,"Salience":0.5697788,"AgeSeconds":192.95,"Strength":0.698845148,"RecallAgeSeconds":192.95,"RecallCount":0},{"Kind":3,"Category":0,"EventTag":"PlayerSaid","Text":"我不是哦","Hint":"玩家对你说：「我不是哦」","SpeakerName":"你","Importance":0.7,"Salience":0.689403534,"AgeSeconds":191.075,"Strength":0.782582462,"RecallAgeSeconds":191.075,"RecallCount":0},{"Kind":3,"Category":0,"EventTag":"PlayerSaid","Text":"我是大猫","Hint":"玩家对你说：「我是大猫」","SpeakerName":"你","Importance":0.7,"Salience":0.689403534,"AgeSeconds":175.425,"Strength":0.782582462,"RecallAgeSeconds":175.425,"RecallCount":0},{"Kind":2,"Category":0,"EventTag":"PlayerSaid","Text":"大猫？那你会爬最高的管子吗？","Hint":"","SpeakerName":"蓝蛮","Importance":0.7,"Salience":0.6369035,"AgeSeconds":174.6,"Strength":0.745832443,"RecallAgeSeconds":174.6,"RecallCount":0},{"Kind":3,"Category":2,"EventTag":"Respond","Text":"最高的管子……我、我没见它爬过。它是不是只蹲软地方？（小声嘀咕）…青跳跳，你、你问它去呀——我不敢问。","Hint":"","SpeakerName":"雪跳","Importance":0.55,"Salience":0.539778769,"AgeSeconds":168.6,"Strength":0.6778451,"RecallAgeSeconds":168.6,"RecallCount":0},{"Kind":3,"Category":0,"EventTag":"PlayerSaid","Text":"对啊","Hint":"玩家对你说：「对啊」","SpeakerName":"你","Importance":0.7,"Salience":0.606903553,"AgeSeconds":165.25,"Strength":0.7248325,"RecallAgeSeconds":165.25,"RecallCount":0},{"Kind":1,"Category":0,"EventTag":"PlayerSaid","Text":"","Hint":"玩家（大猫）刚才对你说：「对啊」。你想接一句。","SpeakerName":"蓝蛮","Importance":0.7,"Salience":0.606903553,"AgeSeconds":107.725,"Strength":1.0,"RecallAgeSeconds":107.725,"RecallCount":4},{"Kind":3,"Category":0,"EventTag":"PlayerSaid","Text":"我爬的很高","Hint":"玩家对你说：「我爬的很高」","SpeakerName":"你","Importance":0.7,"Salience":0.606903553,"AgeSeconds":153.7,"Strength":0.7248325,"RecallAgeSeconds":153.7,"RecallCount":0},{"Kind":3,"Category":0,"EventTag":"PlayerSaid","Text":"爬那么高——上面有啥？有能吃的东西吗！…那你会不会下不来呀……","Hint":"","SpeakerName":"雪跳","Importance":0.7,"Salience":0.606903553,"AgeSeconds":152.4,"Strength":0.7248325,"RecallAgeSeconds":152.4,"RecallCount":0},{"Kind":3,"Category":0,"EventTag":"PlayerSaid","Text":"有","Hint":"玩家对你说：「有」","SpeakerName":"你","Importance":0.7,"Salience":0.606903553,"AgeSeconds":146.125,"Strength":0.7248325,"RecallAgeSeconds":146.125,"RecallCount":0},{"Kind":3,"Category":0,"EventTag":"PlayerSaid","Text":"有？有什么——你倒是说清楚嘛！","Hint":"","SpeakerName":"蓝跳跳","Importance":0.7,"Salience":0.606903553,"AgeSeconds":144.975,"Strength":0.7248325,"RecallAgeSeconds":144.975,"RecallCount":0},{"Kind":3,"Category":0,"EventTag":"PlayerSaid","Text":"有吃的","Hint":"玩家对你说：「有吃的」","SpeakerName":"你","Importance":0.7,"Salience":0.606903553,"AgeSeconds":139.825,"Strength":0.7248325,"RecallAgeSeconds":139.825,"RecallCount":0},{"Kind":3,"Category":0,"EventTag":"PlayerSaid","Text":"快破","Hint":"玩家对你说：「快破」","SpeakerName":"你","Importance":0.7,"Salience":0.606903553,"AgeSeconds":107.725,"Strength":0.7248325,"RecallAgeSeconds":107.725,"RecallCount":0},{"Kind":2,"Category":0,"EventTag":"Fleeing","Text":"我不想被吃掉……","Hint":"","SpeakerName":"蓝蛮","Importance":0.7,"Salience":0.689403534,"AgeSeconds":98.95,"Strength":0.782582462,"RecallAgeSeconds":98.95,"RecallCount":0},{"Kind":1,"Category":0,"EventTag":"Catch by Creature","Text":"","Hint":"我被什么东西抓住了，动不了。","SpeakerName":"蓝蛮","Importance":0.88,"Salience":0.813403547,"AgeSeconds":18.975,"Strength":1.0,"RecallAgeSeconds":18.975,"RecallCount":3},{"Kind":2,"Category":0,"EventTag":"Catch by Creature","Text":"啊啊啊啊啊啊啊！","Hint":"","SpeakerName":"蓝蛮","Importance":0.88,"Salience":0.8259036,"AgeSeconds":36.7,"Strength":1.0,"RecallAgeSeconds":36.7,"RecallCount":1},{"Kind":2,"Category":0,"EventTag":"Catch by Creature","Text":"喂！快来救我啊！","Hint":"","SpeakerName":"蓝蛮","Importance":0.88,"Salience":0.7809036,"AgeSeconds":58.775,"Strength":0.8466325,"RecallAgeSeconds":58.775,"RecallCount":0},{"Kind":3,"Category":0,"EventTag":"Fleeing","Text":"大家保持距离，别被伤了！","Hint":"","SpeakerName":"雪跳","Importance":0.7,"Salience":0.689403534,"AgeSeconds":50.6,"Strength":0.782582462,"RecallAgeSeconds":50.6,"RecallCount":0},{"Kind":3,"Category":0,"EventTag":"Fleeing","Text":"别做梦了！","Hint":"","SpeakerName":"青跳跳","Importance":0.7,"Salience":0.6369035,"AgeSeconds":31.75,"Strength":0.745832443,"RecallAgeSeconds":31.75,"RecallCount":0}],"Impressions":{"-1:7131":{"Spawner":-1,"Number":7131,"Type":"Slugpup","Name":"同伴","Met":8,"Helped":0,"SavedThem":0,"Hurt":0,"Grabbed":0,"Killed":0,"Carried":0,"Played":0,"Fed":0,"Meowed":0,"Chatted":7,"Together":0,"Wronged":0,"Threatened":0,"Scolded":0,"Ignored":0,"Isolated":0,"GaveToy":0,"ToldStay":0,"ToldFollow":0,"FirstTick":7465,"LastTick":13796,"LastTogetherTick":0},"-1:7133":{"Spawner":-1,"Number":7133,"Type":"Slugpup","Name":"布丁","Met":5,"Helped":0,"SavedThem":0,"Hurt":0,"Grabbed":0,"Killed":0,"Carried":0,"Played":0,"Fed":0,"Meowed":0,"Chatted":4,"Together":0,"Wronged":0,"Threatened":0,"Scolded":0,"Ignored":0,"Isolated":0,"GaveToy":0,"ToldStay":0,"ToldFollow":0,"FirstTick":7465,"LastTick":11674,"LastTogetherTick":0},"-1:0":{"Spawner":-1,"Number":0,"Type":"Slugcat","Name":"你","Met":8,"Helped":0,"SavedThem":0,"Hurt":0,"Grabbed":0,"Killed":0,"Carried":0,"Played":0,"Fed":0,"Meowed":0,"Chatted":0,"Together":10,"Wronged":0,"Threatened":0,"Scolded":0,"Ignored":0,"Isolated":1,"GaveToy":0,"ToldStay":0,"ToldFollow":0,"FirstTick":7465,"LastTick":11511,"LastTogetherTick":15479},"-1:7134":{"Spawner":-1,"Number":7134,"Type":"Slugpup","Name":"青跳跳","Met":3,"Helped":0,"SavedThem":0,"Hurt":0,"Grabbed":0,"Killed":0,"Carried":0,"Played":0,"Fed":0,"Meowed":0,"Chatted":3,"Together":0,"Wronged":0,"Threatened":0,"Scolded":0,"Ignored":0,"Isolated":0,"GaveToy":0,"ToldStay":0,"ToldFollow":0,"FirstTick":7680,"LastTick":14550,"LastTogetherTick":0},"-1:7137":{"Spawner":-1,"Number":7137,"Type":"GreenLizard","Name":"绿蜥蜴","Met":1,"Helped":0,"SavedThem":0,"Hurt":0,"Grabbed":0,"Killed":0,"Carried":0,"Played":0,"Fed":0,"Meowed":0,"Chatted":0,"Together":0,"Wronged":0,"Threatened":0,"Scolded":0,"Ignored":0,"Isolated":0,"GaveToy":0,"ToldStay":0,"ToldFollow":0,"FirstTick":11862,"LastTick":11862,"LastTogetherTick":0},"type:Creature":{"Spawner":-2147483648,"Number":-1,"Type":"Creature","Name":"什么东西","Met":0,"Helped":0,"SavedThem":0,"Hurt":0,"Grabbed":7,"Killed":0,"Carried":0,"Played":0,"Fed":0,"Meowed":0,"Chatted":0,"Together":0,"Wronged":0,"Threatened":0,"Scolded":0,"Ignored":0,"Isolated":0,"GaveToy":0,"ToldStay":0,"ToldFollow":0,"FirstTick":12776,"LastTick":15061,"LastTogetherTick":0}}},"-1:7133":{"Name":"蓝跳跳","Species":"Slugpup","FirstTick":11862,"LastSeenTick":15729,"CurrentEmotion":"好奇","EmotionAgeSeconds":2.275,"NamedByAi":true,"Counters":{"isolated":1},"RecentLines":["它有时候会自己跑没影……不过又总会回来。回来时身上带着别的味道。…你说，它跑出去的时候，是去找什么呀？","闲得慌……？它平时都在哪儿待着呀，也钻管道吗？","它就是追着你跑……没咬到别的？尾巴还在吧？","追你？是虫子还是大鸟？它跑得快不快？","闲得慌……？它平时都在哪儿待着呀，也钻管道吗？","它就是追着你跑……没咬到别的？尾巴还在吧？"],"LongMemory":[{"Kind":3,"Category":0,"EventTag":"See SlugNPC","Text":"那边那个……也是幼崽吧？…别出声，我先看看它往哪儿走。","Hint":"","SpeakerName":"蓝蛮","Importance":0.5,"Salience":0.5891844,"AgeSeconds":207.325,"Strength":0.7124291,"RecallAgeSeconds":207.325,"RecallCount":0},{"Kind":3,"Category":2,"EventTag":"Respond","Text":"它、它没发现我们吗？——你、你别凶它，好不好？","Hint":"","SpeakerName":"雪跳","Importance":0.55,"Salience":0.63357836,"AgeSeconds":202.75,"Strength":0.7435049,"RecallAgeSeconds":202.75,"RecallCount":0},{"Kind":3,"Category":2,"EventTag":"Respond","Text":"凶它干嘛，它又没扑上来……你倒是说说，它刚才往哪边挪了？","Hint":"","SpeakerName":"蓝蛮","Importance":0.55,"Salience":0.63357836,"AgeSeconds":197.65,"Strength":0.7435049,"RecallAgeSeconds":197.65,"RecallCount":0},{"Kind":3,"Category":0,"EventTag":"PlayerSaid","Text":"我不是哦","Hint":"玩家对你说：「我不是哦」","SpeakerName":"你","Importance":0.7,"Salience":0.6991844,"AgeSeconds":191.075,"Strength":0.789429069,"RecallAgeSeconds":191.075,"RecallCount":0},{"Kind":3,"Category":0,"EventTag":"PlayerSaid","Text":"大猫？那你会爬最高的管子吗？","Hint":"","SpeakerName":"蓝蛮","Importance":0.7,"Salience":0.6991844,"AgeSeconds":174.6,"Strength":0.789429069,"RecallAgeSeconds":174.6,"RecallCount":0},{"Kind":3,"Category":0,"EventTag":"PlayerSaid","Text":"我爬的很高","Hint":"玩家对你说：「我爬的很高」","SpeakerName":"你","Importance":0.7,"Salience":0.6466844,"AgeSeconds":153.7,"Strength":0.7526791,"RecallAgeSeconds":153.7,"RecallCount":0},{"Kind":1,"Category":0,"EventTag":"PlayerSaid","Text":"","Hint":"玩家（大猫）刚才对你说：「我爬的很高」。你想接一句。","SpeakerName":"蓝跳跳","Importance":0.7,"Salience":0.6166844,"AgeSeconds":107.725,"Strength":1.0,"RecallAgeSeconds":107.725,"RecallCount":3},{"Kind":3,"Category":0,"EventTag":"PlayerSaid","Text":"爬那么高——上面有啥？有能吃的东西吗！…那你会不会下不来呀……","Hint":"","SpeakerName":"雪跳","Importance":0.7,"Salience":0.6166844,"AgeSeconds":152.4,"Strength":0.7316791,"RecallAgeSeconds":152.4,"RecallCount":0},{"Kind":3,"Category":0,"EventTag":"PlayerSaid","Text":"有","Hint":"玩家对你说：「有」","SpeakerName":"你","Importance":0.7,"Salience":0.6166844,"AgeSeconds":146.125,"Strength":0.7316791,"RecallAgeSeconds":146.125,"RecallCount":0},{"Kind":2,"Category":0,"EventTag":"PlayerSaid","Text":"有？有什么——你倒是说清楚嘛！","Hint":"","SpeakerName":"蓝跳跳","Importance":0.7,"Salience":0.6166844,"AgeSeconds":144.975,"Strength":0.7316791,"RecallAgeSeconds":144.975,"RecallCount":0},{"Kind":3,"Category":0,"EventTag":"PlayerSaid","Text":"有吃的","Hint":"玩家对你说：「有吃的」","SpeakerName":"你","Importance":0.7,"Salience":0.6166844,"AgeSeconds":139.825,"Strength":0.7316791,"RecallAgeSeconds":139.825,"RecallCount":0},{"Kind":3,"Category":0,"EventTag":"PlayerSaid","Text":"我看到了","Hint":"玩家对你说：「我看到了」","SpeakerName":"你","Importance":0.7,"Salience":0.6166844,"AgeSeconds":120.575,"Strength":0.7316791,"RecallAgeSeconds":120.575,"RecallCount":0},{"Kind":2,"Category":0,"EventTag":"Fleeing","Text":"救我！","Hint":"","SpeakerName":"蓝跳跳","Importance":0.7,"Salience":0.6991844,"AgeSeconds":113.6,"Strength":0.789429069,"RecallAgeSeconds":113.6,"RecallCount":0},{"Kind":3,"Category":0,"EventTag":"PlayerSaid","Text":"快破","Hint":"玩家对你说：「快破」","SpeakerName":"你","Importance":0.7,"Salience":0.6166844,"AgeSeconds":107.725,"Strength":0.7316791,"RecallAgeSeconds":107.725,"RecallCount":0},{"Kind":3,"Category":0,"EventTag":"Fleeing","Text":"我不想被吃掉……","Hint":"","SpeakerName":"蓝蛮","Importance":0.7,"Salience":0.6991844,"AgeSeconds":98.95,"Strength":0.789429069,"RecallAgeSeconds":98.95,"RecallCount":0},{"Kind":3,"Category":2,"EventTag":"Respond","Text":"被吃掉？什么、什么东西要吃你呀？…它长什么样——有牙吗？","Hint":"","SpeakerName":"雪跳","Importance":0.55,"Salience":0.63357836,"AgeSeconds":93.65,"Strength":0.7435049,"RecallAgeSeconds":93.65,"RecallCount":0},{"Kind":3,"Category":0,"EventTag":"Fleeing","Text":"它在追我！","Hint":"","SpeakerName":"青跳跳","Importance":0.7,"Salience":0.6466844,"AgeSeconds":88.2,"Strength":0.7526791,"RecallAgeSeconds":88.2,"RecallCount":0},{"Kind":2,"Category":2,"EventTag":"Respond","Text":"追你？是虫子还是大鸟？它跑得快不快？","Hint":"","SpeakerName":"蓝跳跳","Importance":0.55,"Salience":0.63357836,"AgeSeconds":82.875,"Strength":0.7435049,"RecallAgeSeconds":82.875,"RecallCount":0},{"Kind":3,"Category":2,"EventTag":"Respond","Text":"虫子还是大鸟……我哪顾得上看啊。…它跑得可快了，差点咬到我尾巴——你问这么细干嘛？","Hint":"","SpeakerName":"青跳跳","Importance":0.55,"Salience":0.581078351,"AgeSeconds":77.35,"Strength":0.706754863,"RecallAgeSeconds":77.35,"RecallCount":0},{"Kind":2,"Category":2,"EventTag":"Respond","Text":"它就是追着你跑……没咬到别的？尾巴还在吧？","Hint":"","SpeakerName":"蓝跳跳","Importance":0.55,"Salience":0.5510784,"AgeSeconds":72.125,"Strength":0.6857549,"RecallAgeSeconds":72.125,"RecallCount":0},{"Kind":2,"Category":2,"EventTag":"Respond","Text":"闲得慌……？它平时都在哪儿待着呀，也钻管道吗？","Hint":"","SpeakerName":"蓝跳跳","Importance":0.55,"Salience":0.5510784,"AgeSeconds":40.375,"Strength":0.6857549,"RecallAgeSeconds":40.375,"RecallCount":0},{"Kind":3,"Category":2,"EventTag":"Respond","Text":"管道……它钻得比我快吗？…它平时待的地方，有虫子吗？","Hint":"","SpeakerName":"青跳跳","Importance":0.55,"Salience":0.5510784,"AgeSeconds":34.95,"Strength":0.6857549,"RecallAgeSeconds":34.95,"RecallCount":0}],"Impressions":{"-1:7131":{"Spawner":-1,"Number":7131,"Type":"Slugpup","Name":"同伴","Met":5,"Helped":0,"SavedThem":0,"Hurt":0,"Grabbed":0,"Killed":0,"Carried":0,"Played":0,"Fed":0,"Meowed":0,"Chatted":4,"Together":0,"Wronged":0,"Threatened":0,"Scolded":0,"Ignored":0,"Isolated":0,"GaveToy":0,"ToldStay":0,"ToldFollow":0,"FirstTick":7465,"LastTick":12074,"LastTogetherTick":0},"-1:7134":{"Spawner":-1,"Number":7134,"Type":"Slugpup","Name":"芝麻","Met":8,"Helped":0,"SavedThem":0,"Hurt":0,"Grabbed":0,"Killed":0,"Carried":0,"Played":0,"Fed":0,"Meowed":0,"Chatted":7,"Together":0,"Wronged":0,"Threatened":0,"Scolded":0,"Ignored":0,"Isolated":0,"GaveToy":0,"ToldStay":0,"ToldFollow":0,"FirstTick":7465,"LastTick":14422,"LastTogetherTick":0},"-1:0":{"Spawner":-1,"Number":0,"Type":"Slugcat","Name":"你","Met":7,"Helped":0,"SavedThem":0,"Hurt":0,"Grabbed":0,"Killed":0,"Carried":0,"Played":0,"Fed":0,"Meowed":0,"Chatted":0,"Together":7,"Wronged":0,"Threatened":0,"Scolded":0,"Ignored":0,"Isolated":1,"GaveToy":0,"ToldStay":0,"ToldFollow":0,"FirstTick":7465,"LastTick":11511,"LastTogetherTick":14309},"-1:7132":{"Spawner":-1,"Number":7132,"Type":"Slugpup","Name":"蓝蛮","Met":7,"Helped":0,"SavedThem":0,"Hurt":0,"Grabbed":0,"Killed":0,"Carried":0,"Played":0,"Fed":0,"Meowed":0,"Chatted":7,"Together":0,"Wronged":0,"Threatened":0,"Scolded":0,"Ignored":0,"Isolated":0,"GaveToy":0,"ToldStay":0,"ToldFollow":0,"FirstTick":7527,"LastTick":11862,"LastTogetherTick":0},"-1:7137":{"Spawner":-1,"Number":7137,"Type":"GreenLizard","Name":"绿蜥蜴","Met":1,"Helped":0,"SavedThem":0,"Hurt":0,"Grabbed":0,"Killed":0,"Carried":0,"Played":0,"Fed":0,"Meowed":0,"Chatted":0,"Together":0,"Wronged":0,"Threatened":0,"Scolded":0,"Ignored":0,"Isolated":0,"GaveToy":0,"ToldStay":0,"ToldFollow":0,"FirstTick":11276,"LastTick":11276,"LastTogetherTick":0}}},"-1:7134":{"Name":"青跳跳","Species":"Slugpup","FirstTick":12292,"LastSeenTick":15735,"CurrentEmotion":"好奇","EmotionAgeSeconds":2.125,"NamedByAi":true,"Counters":{"isolated":1},"RecentLines":["你平时钻管道那么快……是不是早就知道哪儿有吃的？…带我去看看呗，就一趟。","别做梦了！","管道……它钻得比我快吗？…它平时待的地方，有虫子吗？","那个同伴……它总愿意听我说话，是不是因为它也闲得慌？…要是它在这儿，我倒想问问它平时都","虫子还是大鸟……我哪顾得上看啊。…它跑得可快了，差点咬到我尾巴——你问这么细干嘛？","它在追我！"],"LongMemory":[{"Kind":3,"Category":2,"EventTag":"Respond","Text":"它、它没发现我们吗？——你、你别凶它，好不好？","Hint":"","SpeakerName":"雪跳","Importance":0.55,"Salience":0.623614967,"AgeSeconds":202.75,"Strength":0.7365305,"RecallAgeSeconds":202.75,"RecallCount":0},{"Kind":3,"Category":2,"EventTag":"Respond","Text":"凶它干嘛，它又没扑上来……你倒是说说，它刚才往哪边挪了？","Hint":"","SpeakerName":"蓝蛮","Importance":0.55,"Salience":0.623614967,"AgeSeconds":197.65,"Strength":0.7365305,"RecallAgeSeconds":197.65,"RecallCount":0},{"Kind":3,"Category":0,"EventTag":"PlayerSaid","Text":"我不是哦","Hint":"玩家对你说：「我不是哦」","SpeakerName":"你","Importance":0.7,"Salience":0.6941773,"AgeSeconds":191.075,"Strength":0.785924137,"RecallAgeSeconds":191.075,"RecallCount":0},{"Kind":1,"Category":0,"EventTag":"PlayerSaid","Text":"","Hint":"玩家（大猫）刚才对你说：「我不是哦」。你想接一句。","SpeakerName":"青跳跳","Importance":0.7,"Salience":0.6941773,"AgeSeconds":107.725,"Strength":1.0,"RecallAgeSeconds":107.725,"RecallCount":4},{"Kind":3,"Category":0,"EventTag":"PlayerSaid","Text":"我是大猫","Hint":"玩家对你说：「我是大猫」","SpeakerName":"你","Importance":0.7,"Salience":0.6416773,"AgeSeconds":175.425,"Strength":0.7491741,"RecallAgeSeconds":175.425,"RecallCount":0},{"Kind":3,"Category":0,"EventTag":"PlayerSaid","Text":"大猫？那你会爬最高的管子吗？","Hint":"","SpeakerName":"蓝蛮","Importance":0.7,"Salience":0.611677349,"AgeSeconds":174.6,"Strength":0.72817415,"RecallAgeSeconds":174.6,"RecallCount":0},{"Kind":3,"Category":0,"EventTag":"PlayerSaid","Text":"对啊","Hint":"玩家对你说：「对啊」","SpeakerName":"你","Importance":0.7,"Salience":0.611677349,"AgeSeconds":165.25,"Strength":0.72817415,"RecallAgeSeconds":165.25,"RecallCount":0},{"Kind":2,"Category":0,"EventTag":"PlayerSaid","Text":"那管子那么滑，你摔下来过没有？摔了几次？","Hint":"","SpeakerName":"青跳跳","Importance":0.7,"Salience":0.611677349,"AgeSeconds":163.8,"Strength":0.72817415,"RecallAgeSeconds":163.8,"RecallCount":0},{"Kind":3,"Category":0,"EventTag":"PlayerSaid","Text":"我爬的很高","Hint":"玩家对你说：「我爬的很高」","SpeakerName":"你","Importance":0.7,"Salience":0.611677349,"AgeSeconds":153.7,"Strength":0.72817415,"RecallAgeSeconds":153.7,"RecallCount":0},{"Kind":3,"Category":0,"EventTag":"PlayerSaid","Text":"爬那么高——上面有啥？有能吃的东西吗！…那你会不会下不来呀……","Hint":"","SpeakerName":"雪跳","Importance":0.7,"Salience":0.611677349,"AgeSeconds":152.4,"Strength":0.72817415,"RecallAgeSeconds":152.4,"RecallCount":0},{"Kind":3,"Category":0,"EventTag":"PlayerSaid","Text":"有","Hint":"玩家对你说：「有」","SpeakerName":"你","Importance":0.7,"Salience":0.611677349,"AgeSeconds":146.125,"Strength":0.72817415,"RecallAgeSeconds":146.125,"RecallCount":0},{"Kind":3,"Category":0,"EventTag":"PlayerSaid","Text":"有？有什么——你倒是说清楚嘛！","Hint":"","SpeakerName":"蓝跳跳","Importance":0.7,"Salience":0.611677349,"AgeSeconds":144.975,"Strength":0.72817415,"RecallAgeSeconds":144.975,"RecallCount":0},{"Kind":3,"Category":0,"EventTag":"PlayerSaid","Text":"有吃的","Hint":"玩家对你说：「有吃的」","SpeakerName":"你","Importance":0.7,"Salience":0.611677349,"AgeSeconds":139.825,"Strength":0.72817415,"RecallAgeSeconds":139.825,"RecallCount":0},{"Kind":3,"Category":0,"EventTag":"PlayerSaid","Text":"我看到了","Hint":"玩家对你说：「我看到了」","SpeakerName":"你","Importance":0.7,"Salience":0.611677349,"AgeSeconds":120.575,"Strength":0.72817415,"RecallAgeSeconds":120.575,"RecallCount":0},{"Kind":3,"Category":0,"EventTag":"Fleeing","Text":"救我！","Hint":"","SpeakerName":"蓝跳跳","Importance":0.7,"Salience":0.6941773,"AgeSeconds":113.6,"Strength":0.785924137,"RecallAgeSeconds":113.6,"RecallCount":0},{"Kind":1,"Category":0,"EventTag":"Fleeing","Text":"","Hint":"有东西在追我，我正在拼命逃跑，很害怕。","SpeakerName":"青跳跳","Importance":0.7,"Salience":0.6941773,"AgeSeconds":113.45,"Strength":0.785924137,"RecallAgeSeconds":113.45,"RecallCount":0},{"Kind":3,"Category":0,"EventTag":"PlayerSaid","Text":"快破","Hint":"玩家对你说：「快破」","SpeakerName":"你","Importance":0.7,"Salience":0.611677349,"AgeSeconds":107.725,"Strength":0.72817415,"RecallAgeSeconds":107.725,"RecallCount":0},{"Kind":3,"Category":2,"EventTag":"Respond","Text":"被吃掉？什么、什么东西要吃你呀？…它长什么样——有牙吗？","Hint":"","SpeakerName":"雪跳","Importance":0.55,"Salience":0.623614967,"AgeSeconds":93.65,"Strength":0.7365305,"RecallAgeSeconds":93.65,"RecallCount":0},{"Kind":2,"Category":0,"EventTag":"Fleeing","Text":"它在追我！","Hint":"","SpeakerName":"青跳跳","Importance":0.7,"Salience":0.6416773,"AgeSeconds":88.2,"Strength":0.7491741,"RecallAgeSeconds":88.2,"RecallCount":0},{"Kind":3,"Category":2,"EventTag":"Respond","Text":"追你？是虫子还是大鸟？它跑得快不快？","Hint":"","SpeakerName":"蓝跳跳","Importance":0.55,"Salience":0.623614967,"AgeSeconds":82.875,"Strength":0.7365305,"RecallAgeSeconds":82.875,"RecallCount":0},{"Kind":2,"Category":2,"EventTag":"Respond","Text":"虫子还是大鸟……我哪顾得上看啊。…它跑得可快了，差点咬到我尾巴——你问这么细干嘛？","Hint":"","SpeakerName":"青跳跳","Importance":0.55,"Salience":0.571114957,"AgeSeconds":77.35,"Strength":0.699780464,"RecallAgeSeconds":77.35,"RecallCount":0},{"Kind":3,"Category":2,"EventTag":"Respond","Text":"闲得慌……？它平时都在哪儿待着呀，也钻管道吗？","Hint":"","SpeakerName":"蓝跳跳","Importance":0.55,"Salience":0.5411149,"AgeSeconds":40.375,"Strength":0.678780437,"RecallAgeSeconds":40.375,"RecallCount":0},{"Kind":2,"Category":2,"EventTag":"Respond","Text":"管道……它钻得比我快吗？…它平时待的地方，有虫子吗？","Hint":"","SpeakerName":"青跳跳","Importance":0.55,"Salience":0.5411149,"AgeSeconds":34.95,"Strength":0.678780437,"RecallAgeSeconds":34.95,"RecallCount":0},{"Kind":2,"Category":0,"EventTag":"Fleeing","Text":"别做梦了！","Hint":"","SpeakerName":"青跳跳","Importance":0.7,"Salience":0.6941773,"AgeSeconds":31.75,"Strength":0.785924137,"RecallAgeSeconds":31.75,"RecallCount":0}],"Impressions":{"-1:7131":{"Spawner":-1,"Number":7131,"Type":"Slugpup","Name":"同伴","Met":9,"Helped":0,"SavedThem":0,"Hurt":0,"Grabbed":0,"Killed":0,"Carried":0,"Played":0,"Fed":0,"Meowed":0,"Chatted":8,"Together":0,"Wronged":0,"Threatened":0,"Scolded":0,"Ignored":0,"Isolated":0,"GaveToy":0,"ToldStay":0,"ToldFollow":0,"FirstTick":7465,"LastTick":15360,"LastTogetherTick":0},"-1:7133":{"Spawner":-1,"Number":7133,"Type":"Slugpup","Name":"布丁","Met":7,"Helped":0,"SavedThem":0,"Hurt":0,"Grabbed":0,"Killed":0,"Carried":0,"Played":0,"Fed":0,"Meowed":0,"Chatted":6,"Together":0,"Wronged":0,"Threatened":0,"Scolded":0,"Ignored":0,"Isolated":0,"GaveToy":0,"ToldStay":0,"ToldFollow":0,"FirstTick":7465,"LastTick":14205,"LastTogetherTick":0},"-1:0":{"Spawner":-1,"Number":0,"Type":"Slugcat","Name":"你","Met":9,"Helped":0,"SavedThem":0,"Hurt":0,"Grabbed":0,"Killed":0,"Carried":0,"Played":0,"Fed":0,"Meowed":0,"Chatted":0,"Together":10,"Wronged":0,"Threatened":0,"Scolded":0,"Ignored":0,"Isolated":1,"GaveToy":0,"ToldStay":0,"ToldFollow":0,"FirstTick":7465,"LastTick":11511,"LastTogetherTick":14309},"-1:7132":{"Spawner":-1,"Number":7132,"Type":"Slugpup","Name":"蓝蛮","Met":7,"Helped":0,"SavedThem":0,"Hurt":0,"Grabbed":0,"Killed":0,"Carried":0,"Played":0,"Fed":0,"Meowed":0,"Chatted":7,"Together":0,"Wronged":0,"Threatened":0,"Scolded":0,"Ignored":0,"Isolated":0,"GaveToy":0,"ToldStay":0,"ToldFollow":0,"FirstTick":7527,"LastTick":12663,"LastTogetherTick":0},"-1:7137":{"Spawner":-1,"Number":7137,"Type":"GreenLizard","Name":"绿蜥蜴","Met":3,"Helped":0,"SavedThem":0,"Hurt":0,"Grabbed":0,"Killed":0,"Carried":0,"Played":0,"Fed":0,"Meowed":0,"Chatted":0,"Together":0,"Wronged":0,"Threatened":0,"Scolded":0,"Ignored":0,"Isolated":0,"GaveToy":0,"ToldStay":0,"ToldFollow":0,"FirstTick":11282,"LastTick":14550,"LastTogetherTick":0}}},"-1:3598":{"Name":"青芽","Species":"Slugpup","FirstTick":6628,"LastSeenTick":11461,"CurrentEmotion":"害怕","EmotionAgeSeconds":8.875,"NamedByAi":true,"Counters":{},"RecentLines":["它、它刚才好像在听我说话……我想靠近一点。","后、后面那个影子……它好像还跟着！我跑不动了，腿在抖……","我不想被吃掉……","那个同伴……愿意听我说话，真好。可、可是旁边有绿蜥蜴在，我脚底下有点发毛。","救我！","躲起来！它过来了！"],"LongMemory":[{"Kind":1,"Category":0,"EventTag":"See SlugNPC","Text":"","Hint":"我看见蛞蝓猫幼崽就在附近，它还没发现我。（我对它的感觉：跟我一样的小家伙。它害怕的时候会紧紧抓我的手。）","SpeakerName":"芝麻","Importance":0.5,"Salience":0.5973416,"AgeSeconds":264.775,"Strength":0.7181391,"RecallAgeSeconds":264.775,"RecallCount":0},{"Kind":3,"Category":0,"EventTag":"See SlugNPC","Text":"它、它没看见我……尾巴还在动！要不要绕过去？","Hint":"","SpeakerName":"青牙","Importance":0.5,"Salience":0.5973416,"AgeSeconds":263.225,"Strength":0.7181391,"RecallAgeSeconds":263.225,"RecallCount":0},{"Kind":3,"Category":2,"EventTag":"Respond","Text":"绕……绕过去？它尾巴在动，是不是在玩什么呀。","Hint":"","SpeakerName":"雪跳跳","Importance":0.55,"Salience":0.632760465,"AgeSeconds":257.75,"Strength":0.7429323,"RecallAgeSeconds":257.75,"RecallCount":0},{"Kind":1,"Category":0,"EventTag":"Fleeing","Text":"","Hint":"有东西在追我，我正在拼命逃跑，很害怕。","SpeakerName":"青芽","Importance":0.7,"Salience":0.7073416,"AgeSeconds":20.325,"Strength":1.0,"RecallAgeSeconds":20.325,"RecallCount":4},{"Kind":3,"Category":0,"EventTag":"Fleeing","Text":"我不想被吃掉……","Hint":"","SpeakerName":"雪跳跳","Importance":0.7,"Salience":0.7073416,"AgeSeconds":67.975,"Strength":1.0,"RecallAgeSeconds":67.975,"RecallCount":2},{"Kind":2,"Category":0,"EventTag":"Fleeing","Text":"Waaaa！救命啊！","Hint":"","SpeakerName":"青芽","Importance":0.7,"Salience":0.6548416,"AgeSeconds":232.925,"Strength":0.7583891,"RecallAgeSeconds":232.925,"RecallCount":0},{"Kind":3,"Category":2,"EventTag":"Respond","Text":"哇啊！你跑什么呀——是、是大蜥蜴吗？还是别的什么？","Hint":"","SpeakerName":"雪跳跳","Importance":0.55,"Salience":0.632760465,"AgeSeconds":228.3,"Strength":0.7429323,"RecallAgeSeconds":228.3,"RecallCount":0},{"Kind":3,"Category":0,"EventTag":"Fleeing","Text":"我、我跑不动了啦！","Hint":"","SpeakerName":"青牙","Importance":0.7,"Salience":0.6248416,"AgeSeconds":227.65,"Strength":0.7373891,"RecallAgeSeconds":227.65,"RecallCount":0},{"Kind":2,"Category":2,"EventTag":"Respond","Text":"啊——又没追来啊……我跑得腿都软了，结果什么都没有。…你是不是也白紧张了？","Hint":"","SpeakerName":"青芽","Importance":0.55,"Salience":0.580260456,"AgeSeconds":224.25,"Strength":0.7061823,"RecallAgeSeconds":224.25,"RecallCount":0},{"Kind":3,"Category":2,"EventTag":"Respond","Text":"那、那到底是什么声音呀？你听见没？还是只有我耳朵在响？","Hint":"","SpeakerName":"雪跳跳","Importance":0.55,"Salience":0.5502604,"AgeSeconds":219.85,"Strength":0.6851823,"RecallAgeSeconds":219.85,"RecallCount":0},{"Kind":3,"Category":0,"EventTag":"Killed by GreenLizard","Text":"疼……","Hint":"","SpeakerName":"雪跳跳","Importance":1.0,"Salience":0.8723416,"AgeSeconds":216.875,"Strength":0.9106391,"RecallAgeSeconds":216.875,"RecallCount":0},{"Kind":2,"Category":0,"EventTag":"Fleeing","Text":"躲起来！它过来了！","Hint":"","SpeakerName":"青芽","Importance":0.7,"Salience":0.6248416,"AgeSeconds":115.2,"Strength":0.7373891,"RecallAgeSeconds":115.2,"RecallCount":0},{"Kind":2,"Category":0,"EventTag":"Fleeing","Text":"救我！","Hint":"","SpeakerName":"青芽","Importance":0.7,"Salience":0.6248416,"AgeSeconds":90.9,"Strength":0.7373891,"RecallAgeSeconds":90.9,"RecallCount":0}],"Impressions":{"-1:3599":{"Spawner":-1,"Number":3599,"Type":"Slugpup","Name":"同伴","Met":9,"Helped":0,"SavedThem":0,"Hurt":0,"Grabbed":0,"Killed":0,"Carried":0,"Played":0,"Fed":0,"Meowed":0,"Chatted":7,"Together":0,"Wronged":0,"Threatened":0,"Scolded":0,"Ignored":0,"Isolated":0,"GaveToy":0,"ToldStay":0,"ToldFollow":0,"FirstTick":1225,"LastTick":11650,"LastTogetherTick":0},"-1:0":{"Spawner":-1,"Number":0,"Type":"Slugcat","Name":"你","Met":1,"Helped":0,"SavedThem":0,"Hurt":0,"Grabbed":0,"Killed":0,"Carried":0,"Played":0,"Fed":0,"Meowed":0,"Chatted":0,"Together":17,"Wronged":0,"Threatened":0,"Scolded":0,"Ignored":0,"Isolated":0,"GaveToy":0,"ToldStay":0,"ToldFollow":0,"FirstTick":1315,"LastTick":1315,"LastTogetherTick":11717},"-1:3600":{"Spawner":-1,"Number":3600,"Type":"Slugpup","Name":"同伴","Met":9,"Helped":0,"SavedThem":0,"Hurt":0,"Grabbed":0,"Killed":0,"Carried":0,"Played":0,"Fed":0,"Meowed":0,"Chatted":7,"Together":0,"Wronged":0,"Threatened":0,"Scolded":0,"Ignored":0,"Isolated":0,"GaveToy":0,"ToldStay":0,"ToldFollow":0,"FirstTick":1315,"LastTick":3141,"LastTogetherTick":0},"-1:3601":{"Spawner":-1,"Number":3601,"Type":"GreenLizard","Name":"绿蜥蜴","Met":11,"Helped":0,"SavedThem":0,"Hurt":0,"Grabbed":0,"Killed":0,"Carried":0,"Played":0,"Fed":0,"Meowed":0,"Chatted":0,"Together":0,"Wronged":0,"Threatened":0,"Scolded":0,"Ignored":0,"Isolated":0,"GaveToy":0,"ToldStay":0,"ToldFollow":0,"FirstTick":1617,"LastTick":11003,"LastTogetherTick":0}}},"-1:3599":{"Name":"青牙","Species":"Slugpup","FirstTick":8834,"LastSeenTick":11650,"CurrentEmotion":"害怕","EmotionAgeSeconds":4.15,"NamedByAi":true,"Counters":{"played":4},"RecentLines":["它、它还在后面吗？刚才差点咬到尾巴了！…躲那根管子行不行——里面黑，但它进不来吧？","好——慢——啊……你就一直待在这儿吗？","躲起来！它过来了！","它跑起来……脚是一顿一顿的，像踩在会动的地上。…要是它转弯慢，我就想绕到后面看看。","它在追我！","好可怕，快跑喵！"],"LongMemory":[{"Kind":2,"Category":0,"EventTag":"See SlugNPC","Text":"它、它没看见我……尾巴还在动！要不要绕过去？","Hint":"","SpeakerName":"青牙","Importance":0.5,"Salience":0.5975153,"AgeSeconds":263.225,"Strength":0.7182607,"RecallAgeSeconds":263.225,"RecallCount":0},{"Kind":1,"Category":0,"EventTag":"See SlugNPC","Text":"","Hint":"我看见蛞蝓猫幼崽就在附近，它还没发现我。（我对它的感觉：跟我一样的小家伙。它害怕的时候会紧紧抓我的手。）","SpeakerName":"青牙","Importance":0.5,"Salience":0.5975153,"AgeSeconds":260.275,"Strength":0.7182607,"RecallAgeSeconds":260.275,"RecallCount":0},{"Kind":3,"Category":2,"EventTag":"Respond","Text":"绕……绕过去？它尾巴在动，是不是在玩什么呀。","Hint":"","SpeakerName":"雪跳跳","Importance":0.55,"Salience":0.6265282,"AgeSeconds":257.75,"Strength":0.738569736,"RecallAgeSeconds":257.75,"RecallCount":0},{"Kind":3,"Category":0,"EventTag":"Fleeing","Text":"我不想被吃掉……","Hint":"","SpeakerName":"雪跳跳","Importance":0.7,"Salience":0.70751524,"AgeSeconds":165.375,"Strength":0.955133,"RecallAgeSeconds":165.375,"RecallCount":1},{"Kind":1,"Category":0,"EventTag":"Fleeing","Text":"","Hint":"有东西在追我，我正在拼命逃跑，很害怕。","SpeakerName":"青牙","Importance":0.7,"Salience":0.70751524,"AgeSeconds":74.55,"Strength":1.0,"RecallAgeSeconds":74.55,"RecallCount":3},{"Kind":3,"Category":0,"EventTag":"Fleeing","Text":"Waaaa！救命啊！","Hint":"","SpeakerName":"青芽","Importance":0.7,"Salience":0.65501523,"AgeSeconds":232.925,"Strength":0.758510649,"RecallAgeSeconds":232.925,"RecallCount":0},{"Kind":3,"Category":2,"EventTag":"Respond","Text":"哇啊！你跑什么呀——是、是大蜥蜴吗？还是别的什么？","Hint":"","SpeakerName":"雪跳跳","Importance":0.55,"Salience":0.6265282,"AgeSeconds":228.3,"Strength":0.738569736,"RecallAgeSeconds":228.3,"RecallCount":0},{"Kind":2,"Category":0,"EventTag":"Fleeing","Text":"我、我跑不动了啦！","Hint":"","SpeakerName":"青牙","Importance":0.7,"Salience":0.625015259,"AgeSeconds":227.65,"Strength":0.7375107,"RecallAgeSeconds":227.65,"RecallCount":0},{"Kind":3,"Category":2,"EventTag":"Respond","Text":"啊——又没追来啊……我跑得腿都软了，结果什么都没有。…你是不是也白紧张了？","Hint":"","SpeakerName":"青芽","Importance":0.55,"Salience":0.5740282,"AgeSeconds":224.25,"Strength":0.7018197,"RecallAgeSeconds":224.25,"RecallCount":0},{"Kind":3,"Category":2,"EventTag":"Respond","Text":"那、那到底是什么声音呀？你听见没？还是只有我耳朵在响？","Hint":"","SpeakerName":"雪跳跳","Importance":0.55,"Salience":0.5440282,"AgeSeconds":219.85,"Strength":0.68081975,"RecallAgeSeconds":219.85,"RecallCount":0},{"Kind":3,"Category":0,"EventTag":"Killed by GreenLizard","Text":"疼……","Hint":"","SpeakerName":"雪跳跳","Importance":1.0,"Salience":0.872515261,"AgeSeconds":216.875,"Strength":0.9107607,"RecallAgeSeconds":216.875,"RecallCount":0},{"Kind":1,"Category":1,"EventTag":"Friend died by GreenLizard","Text":"","Hint":"同伴被绿蜥蜴杀死了，我就在旁边看着。","SpeakerName":"青牙","Importance":0.92,"Salience":0.8449476,"AgeSeconds":216.875,"Strength":0.8914633,"RecallAgeSeconds":216.875,"RecallCount":0},{"Kind":2,"Category":0,"EventTag":"Fleeing","Text":"谁来帮帮我喵！","Hint":"","SpeakerName":"青牙","Importance":0.7,"Salience":0.65501523,"AgeSeconds":200.725,"Strength":0.758510649,"RecallAgeSeconds":200.725,"RecallCount":0},{"Kind":2,"Category":0,"EventTag":"Fleeing","Text":"好可怕，快跑喵！","Hint":"","SpeakerName":"青牙","Importance":0.7,"Salience":0.625015259,"AgeSeconds":146.875,"Strength":0.7375107,"RecallAgeSeconds":146.875,"RecallCount":0},{"Kind":3,"Category":0,"EventTag":"Fleeing","Text":"躲起来！它过来了！","Hint":"","SpeakerName":"青芽","Importance":0.7,"Salience":0.625015259,"AgeSeconds":51.15,"Strength":0.9026092,"RecallAgeSeconds":51.15,"RecallCount":1},{"Kind":2,"Category":0,"EventTag":"Fleeing","Text":"它在追我！","Hint":"","SpeakerName":"青牙","Importance":0.7,"Salience":0.625015259,"AgeSeconds":98.05,"Strength":0.7375107,"RecallAgeSeconds":98.05,"RecallCount":0},{"Kind":3,"Category":0,"EventTag":"Fleeing","Text":"救我！","Hint":"","SpeakerName":"青芽","Importance":0.7,"Salience":0.625015259,"AgeSeconds":90.9,"Strength":0.7375107,"RecallAgeSeconds":90.9,"RecallCount":0}],"Impressions":{"-1:3598":{"Spawner":-1,"Number":3598,"Type":"Slugpup","Name":"同伴","Met":11,"Helped":0,"SavedThem":0,"Hurt":0,"Grabbed":0,"Killed":0,"Carried":0,"Played":0,"Fed":0,"Meowed":0,"Chatted":9,"Together":0,"Wronged":0,"Threatened":0,"Scolded":0,"Ignored":0,"Isolated":0,"GaveToy":0,"ToldStay":0,"ToldFollow":0,"FirstTick":1225,"LastTick":11461,"LastTogetherTick":0},"-1:3600":{"Spawner":-1,"Number":3600,"Type":"Slugpup","Name":"同伴","Met":9,"Helped":0,"SavedThem":0,"Hurt":0,"Grabbed":0,"Killed":0,"Carried":0,"Played":0,"Fed":0,"Meowed":0,"Chatted":7,"Together":0,"Wronged":0,"Threatened":0,"Scolded":0,"Ignored":0,"Isolated":0,"GaveToy":0,"ToldStay":0,"ToldFollow":0,"FirstTick":1405,"LastTick":3141,"LastTogetherTick":0},"-1:0":{"Spawner":-1,"Number":0,"Type":"Slugcat","Name":"你","Met":5,"Helped":0,"SavedThem":0,"Hurt":0,"Grabbed":0,"Killed":0,"Carried":0,"Played":4,"Fed":0,"Meowed":0,"Chatted":0,"Together":22,"Wronged":0,"Threatened":0,"Scolded":0,"Ignored":0,"Isolated":0,"GaveToy":0,"ToldStay":0,"ToldFollow":0,"FirstTick":1495,"LastTick":11619,"LastTogetherTick":11493},"-1:3601":{"Spawner":-1,"Number":3601,"Type":"GreenLizard","Name":"绿蜥蜴","Met":10,"Helped":0,"SavedThem":0,"Hurt":0,"Grabbed":0,"Killed":0,"Carried":0,"Played":0,"Fed":0,"Meowed":0,"Chatted":0,"Together":0,"Wronged":0,"Threatened":0,"Scolded":0,"Ignored":0,"Isolated":0,"GaveToy":0,"ToldStay":0,"ToldFollow":0,"FirstTick":1619,"LastTick":9770,"LastTogetherTick":0}}},"-1:3600":{"Name":"雪跳跳","Species":"Slugpup","FirstTick":9922,"LastSeenTick":3141,"CurrentEmotion":"好奇","EmotionAgeSeconds":219.85,"NamedByAi":true,"Counters":{},"RecentLines":["我不想被吃掉……","疼……","那、那到底是什么声音呀？你听见没？还是只有我耳朵在响？","哇啊！你跑什么呀——是、是大蜥蜴吗？还是别的什么？","绕……绕过去？它尾巴在动，是不是在玩什么呀。"],"LongMemory":[{"Kind":3,"Category":0,"EventTag":"See SlugNPC","Text":"它、它没看见我……尾巴还在动！要不要绕过去？","Hint":"","SpeakerName":"青牙","Importance":0.5,"Salience":0.5898239,"AgeSeconds":263.225,"Strength":0.712876737,"RecallAgeSeconds":263.225,"RecallCount":0},{"Kind":1,"Category":0,"EventTag":"See SlugNPC","Text":"","Hint":"我看见蛞蝓猫幼崽就在附近，它还没发现我。（我对它的感觉：跟我一样的小家伙。它害怕的时候会紧紧抓我的手。）","SpeakerName":"小豆","Importance":0.5,"Salience":0.5898239,"AgeSeconds":262.525,"Strength":0.712876737,"RecallAgeSeconds":262.525,"RecallCount":0},{"Kind":2,"Category":2,"EventTag":"Respond","Text":"绕……绕过去？它尾巴在动，是不是在玩什么呀。","Hint":"","SpeakerName":"雪跳跳","Importance":0.55,"Salience":0.639085948,"AgeSeconds":257.75,"Strength":0.74736017,"RecallAgeSeconds":257.75,"RecallCount":0},{"Kind":2,"Category":0,"EventTag":"Fleeing","Text":"我不想被吃掉……","Hint":"","SpeakerName":"雪跳跳","Importance":0.7,"Salience":0.6998239,"AgeSeconds":67.975,"Strength":1.0,"RecallAgeSeconds":67.975,"RecallCount":2},{"Kind":1,"Category":0,"EventTag":"Fleeing","Text":"","Hint":"有东西在追我，我正在拼命逃跑，很害怕。","SpeakerName":"雪跳跳","Importance":0.7,"Salience":0.6998239,"AgeSeconds":232.925,"Strength":0.789876759,"RecallAgeSeconds":232.925,"RecallCount":0},{"Kind":3,"Category":0,"EventTag":"Fleeing","Text":"Waaaa！救命啊！","Hint":"","SpeakerName":"青芽","Importance":0.7,"Salience":0.6473239,"AgeSeconds":232.925,"Strength":0.75312674,"RecallAgeSeconds":232.925,"RecallCount":0},{"Kind":2,"Category":2,"EventTag":"Respond","Text":"哇啊！你跑什么呀——是、是大蜥蜴吗？还是别的什么？","Hint":"","SpeakerName":"雪跳跳","Importance":0.55,"Salience":0.639085948,"AgeSeconds":228.3,"Strength":0.74736017,"RecallAgeSeconds":228.3,"RecallCount":0},{"Kind":3,"Category":0,"EventTag":"Fleeing","Text":"我、我跑不动了啦！","Hint":"","SpeakerName":"青牙","Importance":0.7,"Salience":0.6173239,"AgeSeconds":227.65,"Strength":0.7321267,"RecallAgeSeconds":227.65,"RecallCount":0},{"Kind":3,"Category":2,"EventTag":"Respond","Text":"啊——又没追来啊……我跑得腿都软了，结果什么都没有。…你是不是也白紧张了？","Hint":"","SpeakerName":"青芽","Importance":0.55,"Salience":0.586585939,"AgeSeconds":224.25,"Strength":0.710610151,"RecallAgeSeconds":224.25,"RecallCount":0},{"Kind":2,"Category":2,"EventTag":"Respond","Text":"那、那到底是什么声音呀？你听见没？还是只有我耳朵在响？","Hint":"","SpeakerName":"雪跳跳","Importance":0.55,"Salience":0.5565859,"AgeSeconds":219.85,"Strength":0.6896101,"RecallAgeSeconds":219.85,"RecallCount":0},{"Kind":2,"Category":0,"EventTag":"Killed by GreenLizard","Text":"疼……","Hint":"","SpeakerName":"雪跳跳","Importance":1.0,"Salience":0.864823937,"AgeSeconds":216.875,"Strength":0.905376732,"RecallAgeSeconds":216.875,"RecallCount":0},{"Kind":3,"Category":0,"EventTag":"Fleeing","Text":"谁来帮帮我喵！","Hint":"","SpeakerName":"青牙","Importance":0.7,"Salience":0.6173239,"AgeSeconds":200.725,"Strength":0.7321267,"RecallAgeSeconds":200.725,"RecallCount":0},{"Kind":1,"Category":0,"EventTag":"Respond","Text":"","Hint":"青牙 刚才对你说：「谁来帮帮我喵！」。你想接一句。","SpeakerName":"雪跳跳","Importance":0.55,"Salience":0.5348239,"AgeSeconds":5.975,"Strength":1.0,"RecallAgeSeconds":5.975,"RecallCount":10},{"Kind":3,"Category":0,"EventTag":"Fleeing","Text":"好可怕，快跑喵！","Hint":"","SpeakerName":"青牙","Importance":0.7,"Salience":0.6473239,"AgeSeconds":146.875,"Strength":0.75312674,"RecallAgeSeconds":146.875,"RecallCount":0},{"Kind":3,"Category":0,"EventTag":"Fleeing","Text":"躲起来！它过来了！","Hint":"","SpeakerName":"青芽","Importance":0.7,"Salience":0.6473239,"AgeSeconds":51.15,"Strength":0.9183535,"RecallAgeSeconds":51.15,"RecallCount":1},{"Kind":3,"Category":0,"EventTag":"Fleeing","Text":"它在追我！","Hint":"","SpeakerName":"青牙","Importance":0.7,"Salience":0.6473239,"AgeSeconds":98.05,"Strength":0.75312674,"RecallAgeSeconds":98.05,"RecallCount":0},{"Kind":3,"Category":0,"EventTag":"Fleeing","Text":"救我！","Hint":"","SpeakerName":"青芽","Importance":0.7,"Salience":0.6473239,"AgeSeconds":90.9,"Strength":0.75312674,"RecallAgeSeconds":90.9,"RecallCount":0}],"Impressions":{"-1:3599":{"Spawner":-1,"Number":3599,"Type":"Slugpup","Name":"青牙","Met":17,"Helped":0,"SavedThem":0,"Hurt":0,"Grabbed":0,"Killed":0,"Carried":0,"Played":0,"Fed":0,"Meowed":0,"Chatted":16,"Together":0,"Wronged":0,"Threatened":0,"Scolded":0,"Ignored":0,"Isolated":0,"GaveToy":0,"ToldStay":0,"ToldFollow":0,"FirstTick":1287,"LastTick":11650,"LastTogetherTick":0},"-1:0":{"Spawner":-1,"Number":0,"Type":"Slugcat","Name":"你","Met":1,"Helped":0,"SavedThem":0,"Hurt":0,"Grabbed":0,"Killed":0,"Carried":0,"Played":0,"Fed":0,"Meowed":0,"Chatted":0,"Together":24,"Wronged":0,"Threatened":0,"Scolded":0,"Ignored":0,"Isolated":0,"GaveToy":0,"ToldStay":0,"ToldFollow":0,"FirstTick":1315,"LastTick":1315,"LastTogetherTick":11673},"-1:3598":{"Spawner":-1,"Number":3598,"Type":"Slugpup","Name":"同伴","Met":14,"Helped":0,"SavedThem":0,"Hurt":0,"Grabbed":0,"Killed":0,"Carried":0,"Played":0,"Fed":0,"Meowed":0,"Chatted":13,"Together":0,"Wronged":0,"Threatened":0,"Scolded":0,"Ignored":0,"Isolated":0,"GaveToy":0,"ToldStay":0,"ToldFollow":0,"FirstTick":1315,"LastTick":11461,"LastTogetherTick":0},"-1:3601":{"Spawner":-1,"Number":3601,"Type":"GreenLizard","Name":"绿蜥蜴","Met":3,"Helped":0,"SavedThem":0,"Hurt":0,"Grabbed":0,"Killed":1,"Carried":0,"Played":0,"Fed":0,"Meowed":0,"Chatted":0,"Together":0,"Wronged":0,"Threatened":0,"Scolded":0,"Ignored":0,"Isolated":0,"GaveToy":0,"ToldStay":0,"ToldFollow":0,"FirstTick":1618,"LastTick":3141,"LastTogetherTick":0}}}}};
+
+/* ============================================================ 基础表 */
+const TICK_RATE = 40;
+const KIND = [
+  {short:'触发·开口', label:'触发了事件，而且当时说了话', cls:'k0'},
+  {short:'触发·沉默', label:'触发了事件，但没出声',       cls:'k1'},
+  {short:'自己说的',  label:'猫崽自己说的话',             cls:'k2'},
+  {short:'听到的',    label:'听到别人说的话（可能是玩家，也可能是另一只猫）', cls:'k3'}
+];
+const CAT = ['关于自己','关于环境','关于评价'];
+
+const IMP_FIELDS = [
+  ['Met','见面'],['Helped','帮过我'],['HelpedThem','我护过它'],['Fed','给过我吃的'],
+  ['GaveToy','送过我东西'],['Played','陪我玩'],['Carried','抱过我'],['CarriedIt','我叼过它'],
+  ['Feared','怕它'],['Meowed','对我喵'],['ToldFollow','叫我跟着'],
+  ['SavedThem','我救过它'],['RescuedMe','救了我'],['KilledFriend','杀死朋友'],
+  ['KilledEnemy','杀死敌人'],['Cared','关心我'],['Loved','说爱我'],
+  ['Hurt','伤过我'],['Wronged','误伤我'],['Grabbed','粗暴抓我'],
+  ['Threatened','凶过我'],['ThreatenedThem','我凶过它'],
+  ['Scolded','骂过我'],['ScoldedThem','我骂过它'],
+  ['DrivenAway','赶走我'],['DrivenAwayThem','我赶它走'],
+  ['ToldStay','让我等'],['Ignored','不理我'],['Isolated','丢下我'],
+  ['Killed','我害死过它'],['Chatted','聊过天'],['Together','待在一起'],
+  ['SleptTogether','睡我旁边'],['StoodBetween','挡在我前面'],
+  ['PulledFromWater','捞我出水'],
+  ['GaveUpChase','追一半放弃'],
+  ['DroveItOff','被我打退'],['GangedUp','群攻我'],
+  ['NuzzledMe','亲昵我'],['TookMyBeloved','拿走我珍视的'],
+  ['SavedMeWithIt','它救过我命'],['SleptWith','抱着睡'],
+  ['LitTheDark','照亮黑暗'],['HitWithIt','用它打中'],
+  ['KeptSafe','收进避难所'],['LostIt','弄丢'],['WasTaken','被拿走'],
+  ['GiftedToMe','别人送我的礼物'],['GaveAsGift','我送出的礼物'],
+  ['Trophy','战利品'],['HelpedKill','帮我打赢敌人'],
+  ['Badmouth','说我坏话'],['HeardGood','听人夸它'],['HeardBad','听人贬它']
+];
+const IMP_NEG = ['Hurt','Wronged','Grabbed','Threatened','ThreatenedThem','Scolded','ScoldedThem',
+                 'DrivenAway','DrivenAwayThem','Ignored','Isolated','Killed','KilledFriend','Feared',
+                 'GangedUp','TookMyBeloved','LostIt','WasTaken',
+                 'Badmouth','HeardBad'];
+
+const TAG_EXACT = {
+  PlayerSaid:'玩家说话', Respond:'接话 / 回应', Fleeing:'逃跑', Sleeping:'睡觉', Wakeup:'醒来',
+  RainStart:'下雨了', RainEnd:'雨停了', Dark:'变暗', Cold:'觉得冷', Drown:'溺水', Hungry:'饿了',
+  Satiated:'吃饱了', FriendDied:'同伴死了', PlayerCaught:'玩家被抓住', PlayerHurt:'玩家受伤',
+  Onback:'被背上', Outback:'从背上下来', Waiting:'在等', Following:'跟着', Attack:'袭击',
+  Saved:'被救', Isolated:'被丢下', Idle:'发呆', Intoplay:'想玩起来', Wronged:'被误会',
+  Meow:'喵了一声', Hurt:'受伤', Saw:'看见', SlimeMold:'黏菌'
+};
+/* "X by Y" 这种标签，翻成人话 */
+const TAG_BY = {
+  Wronged:'被「%s」误伤', Hurt:'被「%s」伤到', Killed:'被「%s」杀死', Catch:'被「%s」抓住',
+  Grabbed:'被「%s」抓住', Scolded:'被「%s」骂了', Threatened:'被「%s」威胁', Saved:'被「%s」救下',
+  Attack:'被「%s」袭击', Carried:'被「%s」抱起'
+};
+const TAG_PREFIX = {
+  'See ':'看见', 'Kill ':'杀死', 'Grab ':'抓住', 'Throw ':'扔', 'PlayerGrab ':'玩家抓起',
+  'PlayerGaveToy ':'玩家给了玩具', 'Catch ':'抓住', 'Hurt ':'伤到', 'Attack ':'袭击',
+  'Hear ':'听见', 'Eat ':'吃', 'SeeFood ':'看见食物', 'Friend died':'同伴死了'
+};
+
+/* ============================================================ 工具 */
+const $ = (s,r=document)=>r.querySelector(s);
+const esc = s => String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const num = v => (v==null||isNaN(v)) ? '—' : Number(v).toFixed(2);
+
+function zhOf(type){
+  if(!type) return '';
+  if(MAPS.creature[type]) return MAPS.creature[type];
+  if(MAPS.item[type]) return MAPS.item[type];
+  const low = String(type).toLowerCase();
+  for(const k in MAPS.creature) if(low.includes(k.toLowerCase())) return MAPS.creature[k];
+  for(const k in MAPS.item) if(low.includes(k.toLowerCase())) return MAPS.item[k];
+  return type;
+}
+function speciesZh(s){
+  if(!s) return '未知';
+  return MAPS.species[s] || zhOf(s) || s;
+}
+/* 名称来源：读存档里的 NameSource 键（英文），回退到旧字段 NamedByAi */
+const NAME_SOURCES = {
+  Preset:        {label:'预置名',    cls:'preset', desc:'模组预置的名字（可被别的来源覆盖）'},
+  ImportantEvent:{label:'重要事件',  cls:'event',  desc:'遇到大事后给自己起的'},
+  ImportantItem: {label:'重要物品',  cls:'item',   desc:'看到珍视的宝贝后给自己起的'},
+  Companion:     {label:'同伴',      cls:'companion', desc:'同伴给起的'},
+  Random:        {label:'随口起的',  cls:'random', desc:'被问名字时现想的（可被别的来源覆盖）'},
+  Parent:        {label:'玩家',      cls:'parent', desc:'家长（玩家）起的（不会被覆盖）'}
+};
+function nameSourceOf(srcKey, namedByAi, name){
+  // 有显式来源键就直接用
+  if(srcKey && NAME_SOURCES[srcKey]) return srcKey;
+  // 老存档没有来源字段：占位名→预置名，其余→AI 起名（当成随口想的）
+  if(!name || /^小幼猫/.test(name)) return 'Preset';
+  return namedByAi ? 'Random' : 'Preset';
+}
+function nameSourceLabel(src){ return (NAME_SOURCES[src]||{}).label || '未知'; }
+function attitudeOf(type){
+  if(!type) return null;
+  // Slugpup 在态度表里没有独立条目，模组里回退到 SlugNPC
+  return MAPS.att[type] || (type==='Slugpup' ? MAPS.att['SlugNPC'] : null) || null;
+}
+/* 态度 → 好感点数（与 C# Names.AttitudeBase 一致；依恋 / 想吃 / 无聊 / 敬畏 不计） */
+function attitudeScore(type){
+  const a = attitudeOf(type);
+  if(!a) return 0;
+  const L = Number(a.s||0) > 0 ? Number(a.s) : 1;
+  const f = String(a.f||'');
+  let s = 0;
+  if(f.includes('喜爱')) s += 5*L;
+  if(f.includes('珍贵')) s += 3*L;
+  if(f.includes('好玩')) s += 3*L;
+  if(f.includes('好奇')) s += 2*L;
+  if(f.includes('恐惧')) s -= 10*L;
+  if(f.includes('警惕')) s -= 7*L;
+  if(f.includes('讨厌') || f.includes('厌恶')) s -= 5*L;
+  return s;
+}
+function tagDesc(tag){
+  if(!tag) return '（无标签）';
+  const by = tag.match(/^(.*?)\s+by\s+(.+)$/i);
+  if(by){
+    const verb = by[1].trim(), who = by[2].trim();
+    const whoZh = who==='Slugcat' ? '你' : zhOf(who);
+    if(TAG_BY[verb]) return TAG_BY[verb].replace('%s', whoZh);
+    const v = TAG_EXACT[verb] || TAG_PREFIX[verb+' '] || verb;
+    return v + '「' + whoZh + '」';
+  }
+  if(TAG_EXACT[tag]) return TAG_EXACT[tag];
+  for(const p in TAG_PREFIX){
+    if(tag.startsWith(p)) return TAG_PREFIX[p] + '「' + zhOf(tag.slice(p.length).trim()) + '」';
+  }
+  return tag;
+}
+function tagType(tag){ // 从标签里取出涉及的生物/物品类型
+  if(!tag) return null;
+  const by = tag.match(/\s+by\s+(.+)$/i);
+  if(by) return by[1].trim();
+  const m = tag.match(/^(SeeFood|See|Kill|Grab|Throw|PlayerGrab|PlayerGaveToy|Catch|Hurt|Attack|Hear|Eat)\s+(.+)$/i);
+  if(m) return m[2].trim();
+  return null;
+}
+function fmtAge(sec, short){
+  if(sec==null||isNaN(sec)||sec<0) return '—';
+  sec = Math.round(sec);
+  if(sec<60) return sec+(short?'s':' 秒前');
+  const m=Math.floor(sec/60), s=sec%60;
+  if(m<60){
+    if(short) return m+'m'+(s?String(s).padStart(2,'0')+'s':'');
+    return s ? m+' 分 '+s+' 秒前' : m+' 分前';
+  }
+  const h=Math.floor(m/60), mm=m%60;
+  if(short) return h+'h'+(mm?String(mm).padStart(2,'0')+'m':'');
+  return mm ? h+' 小时 '+mm+' 分前' : h+' 小时前';
+}
+function fmtDur(sec){
+  sec=Math.round(sec);
+  if(sec<60) return sec+' 秒';
+  const m=Math.floor(sec/60), s=sec%60;
+  if(m<60) return m+' 分'+(s?(' '+s+' 秒'):'');
+  const h=Math.floor(m/60), mm=m%60;
+  return h+' 时'+(mm?(' '+mm+' 分'):'');
+}
+/* 时长（不带"前"），用于"情绪持续 5 秒"这类描述 */
+function fmtSpan(sec){
+  if(sec==null||isNaN(sec)) return '—';
+  sec=Math.round(sec);
+  if(sec<60) return sec+' 秒';
+  const m=Math.floor(sec/60), s=sec%60;
+  if(m<60) return s?(m+' 分 '+s+' 秒'):(m+' 分');
+  const h=Math.floor(m/60), mm=m%60;
+  return mm?(h+' 小时 '+mm+' 分'):(h+' 小时');
+}
+function fmtTick(t){ if(t==null||isNaN(t)) return '—'; return 'T'+t+'（约 '+fmtDur(t/40)+'）'; }
+function emoColor(e){
+  const s=String(e||'');
+  if(/怕|恐惧|慌|紧张|不安/.test(s)) return '#b1524a';
+  if(/气|怒|凶|烦/.test(s)) return '#b9772e';
+  if(/委屈|难过|失落|闷/.test(s)) return '#5f5590';
+  if(/好奇|兴趣/.test(s)) return '#3d6c9e';
+  if(/开心|满足|安心|喜欢|亲近/.test(s)) return '#2f6f66';
+  if(/无聊|懒/.test(s)) return '#87908a';
+  return '#6b7a72';
+}
+function initials(n){ const s=String(n||'?'); return s.length<=2? s : s.slice(0,2); }
+
+/* affinity 与 C# Impression.Affinity 完全一致：基线 + 累计行为 + 最近语气 */
+function baseAffinity(imp){
+  let b = Number(imp.BaseAffinity||0);
+  if(Math.abs(b) < 1e-4) b = attitudeScore(imp.Type)*0.04;
+  return b;
+}
+/* 最近语气：约 8 分钟衰减到三分之一 */
+function sentimentNow(imp, now){
+  const s = Number(imp.Sentiment||0);
+  if(!s) return 0;
+  const tick = Number(imp.SentimentTick||0);
+  if(!now || now<=0 || tick<=0) return s;
+  const age = Math.max(0, (now-tick)/TICK_RATE);
+  return s*Math.exp(-age/480);
+}
+/* 遗忘标签：每枚让印象朝 0 靠近 0.1 */
+function forgetTags(imp){ return Math.max(0, Number(imp.Forgot||0)); }
+function affinity(imp, now){
+  const g=k=>Number(imp[k]||0);
+  const pos = g('Helped')*0.50 + g('HelpedThem')*0.25 + g('Fed')*0.45 + g('Played')*0.30
+            + g('Carried')*0.15 + g('CarriedIt')*0.05 + g('Meowed')*0.10 + g('SavedThem')*0.30
+            + g('Chatted')*0.04 + g('Together')*0.004 + g('GaveToy')*0.28 + g('ToldFollow')*0.05
+            + g('RescuedMe')*1.20 + g('Cared')*0.25 + g('Loved')*0.45 + g('KilledEnemy')*0.80
+            + g('SleptTogether')*0.60
+            + g('StoodBetween')*0.70 + g('PulledFromWater')*1.00
+            + g('GaveUpChase')*0.25 + g('DroveItOff')*0.35 + g('NuzzledMe')*0.20
+            + g('SavedMeWithIt')*1.20 + g('SleptWith')*0.55
+            + g('LitTheDark')*0.35 + g('HitWithIt')*0.12 + g('KeptSafe')*0.25
+            + g('GiftedToMe')*0.45 + g('GaveAsGift')*0.25
+            + g('Trophy')*0.40 + g('HelpedKill')*0.90
+            + g('HeardGood')*0.14;
+  const neg = g('Hurt')*0.90 + g('Grabbed')*0.70 + g('Killed')*1.00 + g('Feared')*0.30
+            + g('Threatened')*0.60 + g('ThreatenedThem')*0.30
+            + g('Scolded')*0.50 + g('ScoldedThem')*0.40
+            + g('DrivenAway')*0.40 + g('DrivenAwayThem')*0.30
+            + g('Wronged')*0.30 + g('KilledFriend')*2.50
+            + g('ToldStay')*0.08 + g('Ignored')*0.20 + g('Isolated')*0.25
+            + g('GangedUp')*0.50 + g('TookMyBeloved')*0.70
+            + g('LostIt')*0.20 + g('WasTaken')*0.50
+            + g('Badmouth')*0.55 + g('HeardBad')*0.14;
+  const raw = baseAffinity(imp) + pos - neg;
+  const a = Math.max(-1, Math.min(1, raw/(1+Math.abs(raw))));
+  let out = Math.max(-1, Math.min(1, a + sentimentNow(imp, now)*0.55));
+  const n = forgetTags(imp);
+  if(n){
+    const mag = Math.abs(out) - n*0.1;
+    out = mag <= 0 ? 0 : (out > 0 ? mag : -mag);
+  }
+  return out;
+}
+function mood(imp, you, now){
+  const a=affinity(imp, now), g=k=>Number(imp[k]||0);
+  if(imp.Dead){
+    if(a < -0.2) return you ? '你已经死了，我不再怕你' : '它已经死了，我不再怕它';
+    if(a > 0.2)  return you ? '你已经死了，我还挺难过' : '它已经死了，我还挺难过';
+    return you ? '你已经死了' : '它已经死了';
+  }
+  const soft = g('Wronged')+g('Scolded')+g('Threatened')+(you?g('DrivenAway'):0)+g('KilledFriend')
+             > g('Hurt')+g('Grabbed')+g('Feared');
+  if(a>0.5)  return you ? '我很信任你' : (g('Fed')+g('Helped')+g('Played')>0 ? '很信任它':'很亲近它');
+  if(a>0.15) return you ? '我挺喜欢你' : '挺喜欢它';
+  if(a<-0.6) return soft ? (you?'我又气又防着你':'又气又防着它') : (you?'我很怕你':'很怕它');
+  if(a<-0.45) return soft ? (you?'我有点怨你':'有点怨它') : (you?'我有点怕你':'挺怕它');
+  if(a<-0.2) return soft ? (you?'我有点怨你':'有点怨它') : (you?'我对你很戒备':'对它很戒备');
+  return you ? '我还说不上什么感觉' : '说不上什么感觉';
+}
+function describeImp(imp, you){
+  const g=k=>Number(imp[k]||0), P=[];
+  const add=(f,lo,hi,th)=>{ const n=g(f); if(n<=0) return; P.push((n>=(th||3)&&hi)?hi:lo); };
+  add('Helped', you?'你帮过我':'帮过我', you?'你总愿意帮我':'总愿意帮我');
+  add('HelpedThem', you?'我护过你':'我护过它', you?'我常护着你':'我常护着它');
+  add('Fed', you?'你给过我吃的':'给过我食物', you?'你常给我吃的':'常常给我食物');
+  add('GaveToy', you?'你送过我东西':'送过我东西', you?'你常带东西给我':'常带东西给我');
+  add('Played', you?'你陪我玩过':'陪我玩过', you?'你常陪我玩':'常陪我玩');
+  add('Carried', you?'你抱过我':'抱过我', you?'你总把我抱在身边':'总把我抱在身边');
+  add('CarriedIt', you?'我抱过你':'我抱过它', you?'我常常抱着你':'我常常抱着它');
+  add('Feared', you?'我有点怕你':'我有点怕它', you?'我打心底怕你':'我打心底怕它');
+  add('Meowed', you?'你对我喵过':'对我喵过');
+  add('ToldFollow', you?'你叫我跟着你':'叫我跟着它');
+  add('SavedThem', you?'我救过你':'我救过它', you?'我常保护你':'我常保护它');
+  add('RescuedMe', you?'你救了我':'救了我', you?'你从捕食者嘴里救下过我好几次':'从捕食者嘴里救下过我好几次', 2);
+  add('KilledFriend', you?'你杀死了我的朋友':'杀死朋友', you?'你杀死了我的朋友，还不止一个':'杀死朋友，还不止一个', 2);
+  add('KilledEnemy', you?'你帮我杀掉了祸害':'杀死敌人', you?'你帮我除掉过好几个祸害':'帮我除掉过好几个祸害', 2);
+  add('Cared', '你关心过我', '你总在关心我');
+  add('Loved', '你对我说过爱我', '你总对我说爱我');
+  add('Hurt', you?'你伤过我':'伤过我', you?'你不止一次伤过我':'不止一次伤过我');
+  add('Wronged', you?'你有次不小心伤到我':'有次不小心伤过我', you?'你有几回不小心伤到我':'好几回误伤我');
+  add('Grabbed', you?'你粗暴地抓过我':'粗暴地抓过我', you?'你常粗暴地抓我':'常粗暴地抓我');
+  add('Threatened', you?'你凶过我':'凶过我', you?'你总对我很凶':'总对我很凶');
+  add('ThreatenedThem', you?'我凶过你':'我凶过它', you?'我常凶你':'我常凶它');
+  add('Scolded', you?'你骂过我':'骂过我', you?'你总爱骂我':'总爱骂我');
+  add('ScoldedThem', you?'我骂过你':'我骂过它', you?'我常骂你':'我常骂它');
+  add('DrivenAway', '你赶走过我', '你总把我赶走');
+  add('DrivenAwayThem', you?'我赶过你走':'我赶过它走', you?'我常赶你走':'我常赶它走');
+  if(g('ToldStay')) P.push(you?'你让我等过':'让我等过');
+  add('Ignored', you?'你有时不理我':'有时不理我', you?'你常常不理我':'常常不理我');
+  add('Isolated', you?'你把我独自丢下过':'把我独自丢下过', you?'你好几次把我独自丢下':'好几次把我独自丢下');
+  if(g('Killed')) P.push(you?'我害死过你':'我害死过它');
+  if(g('Chatted') && !g('Helped') && !g('Hurt') && !g('Threatened')) P.push(you?'愿意跟你说话':'愿意跟我说话');
+  if(g('Together')>=3) P.push('常待在一起');
+  if(imp.Dead) P.push(you?'你已经死了':'它已经死了');
+  if(!P.length){
+    const att = attitudeOf(imp.Type);
+    if(att && att.v) return att.v;
+    return g('Met')>1 ? (you?'我们见过几回':'见过几回') : (you?'我们刚见过':'刚见过');
+  }
+  return P.join('、');
+}
+
+/* ============================================================ 解析 */
+let DB = null, PUPS = [], SEL = null, TAB='overview', SOURCE='';
+const F = {q:'', kinds:new Set([0,1,2,3]), cat:'all', tag:'all', sort:'new', useFilterExport:false, chatMode:'all'};
+
+function parseMemories(text){
+  let t = String(text||'').replace(/^\uFEFF/,'').trim();
+  if(!t) throw new Error('文件是空的');
+  let db;
+  try{ db = JSON.parse(t); }catch(e){ throw new Error('JSON 解析失败：'+e.message); }
+  if(!db || typeof db!=='object') throw new Error('不是有效的 JSON 对象');
+  const pups = db.Pups || db.pups;
+  if(!pups || typeof pups!=='object' || Array.isArray(pups)) throw new Error('找不到 Pups 字段（不是 Noisy Pup 记忆文件？）');
+  return db;
+}
+function normalize(db){
+  DB = db;
+  const pups = db.Pups || db.pups || {};
+  PUPS = Object.entries(pups).map(([key,rec])=>{
+    rec = rec || {};
+    const mem = (rec.LongMemory||[]).map((m,i)=>({...m, _i:i}));
+    const nowTick = Number(rec.LastSeenTick||0);
+    const imps = Object.entries(rec.Impressions||{}).map(([k,v])=>{
+      const im = {...v, _key:k, _now:nowTick};
+      im._base = baseAffinity(im);
+      im._sent = sentimentNow(im, nowTick);
+      im._aff = affinity(im, nowTick);
+      return im;
+    });
+    return {
+      key, name: rec.Name || '未命名', species: rec.Species || '', speciesZh: speciesZh(rec.Species),
+      emotion: rec.CurrentEmotion || '', emoAge: rec.EmotionAgeSeconds,
+      firstTick: rec.FirstTick, lastTick: rec.LastSeenTick, namedByAi: !!rec.NamedByAi,
+      nameSource: nameSourceOf(rec.NameSource, rec.NamedByAi, rec.Name),
+      counters: rec.Counters || {}, lines: rec.RecentLines || [], mem, imps, raw: rec
+    };
+  }).sort((a,b)=> a.name.localeCompare(b.name,'zh'));
+  // 把印象里的旧名字对齐到当前名字
+  const byKey = Object.fromEntries(PUPS.map(p=>[p.key,p.name]));
+  for(const p of PUPS) for(const im of p.imps){
+    if((im.Type==='Slugpup'||im.Type==='SlugNPC') && byKey[im._key]) im._live = byKey[im._key];
+  }
+  annotateSpeakers();
+  SEL = PUPS.length ? PUPS[0].key : null;
+}
+
+/* ------------------------------------------------------------
+   说话人与对象
+   模组的记忆里：Kind2 = 本猫说的；Kind3 = 听到别人说的，
+   SpeakerName 才是真正的说话人（可能是"你"，也可能是另一只猫）。
+   存档没有保存"这句说给谁听"，所以对象只能按上下文推断，并在界面上标明。
+------------------------------------------------------------ */
+const PUP_PALETTE = ['#5f5590','#b9772e','#b1524a','#3f7f8c','#7a6a3c','#6b5b95'];
+function pupColor(name){
+  let h=0; const s=String(name||'');
+  for(let i=0;i<s.length;i++) h=(h*31+s.charCodeAt(i))>>>0;
+  return PUP_PALETTE[h % PUP_PALETTE.length];
+}
+function speakerColor(role, name, selfName){
+  if(role==='player') return '#3d6c9e';
+  if(role==='self') return '#2f6f66';
+  return pupColor(name);
+}
+function annotateSpeakers(){
+  const names = new Set(PUPS.map(p=>p.name));
+  const fix = {};   // 旧名 → 现名
+  for(const p of PUPS) for(const im of p.imps){
+    if(im.Name && im._live && im.Name!==im._live) fix[im.Name] = im._live;
+  }
+  const realName = n => names.has(n) ? n : (fix[n] || n);
+  const roleOf = (name, self) => {
+    if(!name) return 'self';
+    if(name===self.name) return 'self';
+    if(name==='你' || name==='玩家' || name==='大猫') return 'player';
+    return names.has(realName(name)) ? 'pup' : 'other';
+  };
+
+  for(const p of PUPS){ try{
+    const chrono = p.mem.slice().sort((a,b)=> Number(b.AgeSeconds)-Number(a.AgeSeconds)); // 由早到晚
+    const hist = [];   // 时间顺序上"谁说过话"，用来找回应对象
+    for(const m of chrono){
+      const kind = Number(m.Kind);
+      m._kind = kind;
+      const raw = m.SpeakerName || '';
+      if(kind===2){ m._role='self'; m._speaker=p.name; }
+      else if(kind===3){ m._role=roleOf(raw,p); m._speaker = m._role==='player' ? '你' : realName(raw||'?'); }
+      else { m._role='self'; m._speaker=p.name; }   // 触发事件是它自己观察到的
+
+      const text = (m.Text||'').trim();
+      // 没有台词的事件（触发·开口/沉默）不谈"对谁说"
+      m._to = text ? inferTo(m, p, hist) : null;
+      if(text) hist.push({name:m._speaker, role:m._role});
+    }
+  }catch(e){ console.warn('说话人标注失败', e); } }
+}
+
+/* 推断"这句说给谁听"。存档没存对象，只能按线索排优先级：
+   ① 台词里直呼某只猫的名字 → 大概率在对它说；
+   ② 句首是个称呼（可能是小名，如"团子"指雪团）→ 按共用字猜，标"推断"；
+   ③ 标签是 Respond → 回应上一条"不是自己说的"那句；
+   ④ 玩家相关标签 / 出现"家长、妈妈" → 对玩家；
+   ⑤ 同伴在说话而屋里没别的线索 → 多半在对本猫说，标"推断"。 */
+function lastOtherFor(hist, me){
+  for(let i=hist.length-1; i>=0; i--) if(hist[i].name !== me) return hist[i];
+  return null;
+}
+function inferTo(m, p, hist){
+  const tag = m.EventTag || '';
+  const text = (m.Text||'').trim();
+  if(m._role==='player') return {who:'在场的猫崽', kind:'group'};
+
+  // ⓿ 存档里明确记了收话人（对着物品 / 某个东西说话）：以它为准，不再猜
+  const addr = (m.Addressee||'').trim();
+  if(addr) return {who:addr, kind: m.AddresseeIsItem ? 'item' : 'other', exact:true};
+
+  // ① 点名：叫名字 = 在对它说；只是顺口提到 → 记为 mention，不抢走"对谁说"
+  let named=null, at=1e9;
+  for(const q of PUPS){
+    if(q.key===p.key || q.name===m._speaker) continue;
+    const i = text.indexOf(q.name);
+    if(i>=0 && i<at){ named=q; at=i; }
+  }
+  let mention=null;
+  if(named){
+    const after = text.charAt(at + named.name.length);
+    const addressed = at<=4 || (at<=10 && /[，,！!…、：:]/.test(after));
+    if(addressed) return {who:named.name, kind:'pup'};
+    mention = named.name;
+  }
+
+  // ② 句首称呼，可能是小名（"团子"→雪团）
+  const voc = text.match(/^([\u4e00-\u9fa5]{2,4})[，,、：:！!…—\-\s]/);
+  if(voc && !/[就了是不我你他她它这那谁什么吧啊呢吗]/.test(voc[1])){
+    for(const q of PUPS){
+      if(q.key===p.key || q.name===m._speaker) continue;
+      if([...voc[1]].some(ch=>q.name.indexOf(ch)>=0))
+        return {who:q.name, kind:'pup', guess:true, nick:voc[1], mention};
+    }
+  }
+
+  // ③ 回应上一句（往前找最近一个"不是自己"的说话人）
+  if(/^Respond/i.test(tag)){
+    const o = lastOtherFor(hist, m._speaker);
+    if(o) return {who:o.name, kind:o.role, mention};
+  }
+
+  // ④ 玩家相关事件
+  if(/Player|Slugcat|Onback|Outback|Waiting|Following|Meow/i.test(tag))
+    return {who:'你', kind:'player', mention};
+  if(/家长|妈妈/.test(text))
+    return {who:'你', kind:'player', mention};
+
+  // ⑤ "你"指向最近的对话方（拿不准，标推断）
+  if(/你|您/.test(text)){
+    const o = lastOtherFor(hist, m._speaker);
+    if(o) return {who:o.name, kind:o.role, guess:true, mention};
+  }
+
+  // ⑥ 同伴在说话，而屋里没别的线索
+  if(m._role==='pup') return {who:p.name, kind:'self', guess:true, mention};
+
+  return mention ? {who:'', mention} : null;
+}
+
+function roleZh(role){
+  return {self:'自己', player:'玩家', pup:'同伴', other:'其他', group:'大家'}[role] || '';
+}
+function partnerOf(m){
+  if(m._role==='self'){
+    const t=m._to||{};
+    return t.kind==='group' ? '大家' : (t.who||'');
+  }
+  if(m._role==='pup') return m._speaker;
+  if(m._role==='player') return '你';
+  return '';
+}
+function toLabel(m){
+  const t = m._to;
+  if(!t) return '';
+  const mt = t.mention ? ('提到「'+t.mention+'」') : '';
+  if(!t.who) return mt;
+  let s;
+  if(t.kind==='player') s = '对「你」说';
+  else if(t.kind==='group') s = '对在场的猫说';
+  else if(t.kind==='item') s = '对「'+t.who+'」说';
+  else if(t.nick) s = '对「'+t.who+'」说（叫的“'+t.nick+'”）';
+  else s = '对「'+t.who+'」说' + (t.guess ? '（推断）' : '');
+  return mt ? (s + ' · ' + mt) : s;
+}
+
+/* ============================================================ 渲染：侧栏 */
+function renderSidebar(){
+  $('#pupCount').textContent = PUPS.length ? PUPS.length + ' 只' : '—';
+  const q = $('#pupFilter').value.trim().toLowerCase();
+  const list = PUPS.filter(p=> !q || p.name.toLowerCase().includes(q) || p.key.includes(q) || p.species.toLowerCase().includes(q));
+  const el = $('#pupList');
+  if(!list.length){
+    el.innerHTML = '<div style="padding:18px 10px;color:var(--muted);font-size:12.5px;text-align:center">没有匹配的猫崽</div>';
+    return;
+  }
+  el.innerHTML = list.map(p=>{
+    const on = p.key===SEL ? ' on':'';
+    const color = emoColor(p.emotion);
+    return `<div class="pup${on}" data-key="${esc(p.key)}">
+      <div class="ava">${esc(initials(p.name))}</div>
+      <div style="min-width:0;flex:1">
+        <div class="nm">${esc(p.name)}<span class="chip a" style="padding:0 5px;font-size:10px">${esc(nameSourceLabel(p.nameSource))}</span></div>
+        <div class="meta">
+          <span class="emod" style="background:${color}"></span>
+          <span>${esc(p.emotion||'—')}</span>
+          <span>·</span><span>${esc(p.speciesZh)}</span>
+        </div>
+        <div class="meta" style="margin-top:2px">
+          <span>记忆 ${p.mem.length}</span><span>·</span><span>印象 ${p.imps.length}</span>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+  el.querySelectorAll('.pup').forEach(n=> n.onclick = ()=>{ SEL = n.dataset.key; renderSidebar(); renderMain(); });
+}
+
+/* ============================================================ 渲染：主区 */
+function pup(){ return PUPS.find(p=>p.key===SEL) || null; }
+
+
+/* ============================================================ 旅程日志（journey-*.jsonl） */
+let JOURNEY = null, JOURNEY_NAME = '', JOURNEY_AT = '', JOURNEY_PATH = '';
+const JVIEW = { kinds:null, mode:'timeline', filter:null };
+const JTYPE_META = {
+  see:{cls:'see',label:'看见'},
+  mem:{cls:'mem',label:'记住'},
+  say:{cls:'say',label:'说出口'},
+  ai:{cls:'ai',label:'想法'},
+  rumor:{cls:'rumor',label:'听说'},
+  name:{cls:'name',label:'取名'},
+  nameobj:{cls:'name',label:'起名'},
+  verdict:{cls:'verdict',label:'落账'},
+  impr:{cls:'impr',label:'好感'},
+  forget:{cls:'forget',label:'遗忘'}
+};
+function parseJourney(text, name, path){
+  const evs=[]; let sess=null;
+  String(text||'').split(/\r?\n/).forEach(line=>{
+    const t=line.trim(); if(!t || t[0]!=='{') return;
+    try{ const o=JSON.parse(t); if(o.t==='session') sess=o; evs.push(o); }catch(e){}
+  });
+  JOURNEY = evs; JOURNEY_NAME = name||''; JOURNEY_AT = (sess&&sess.at)||''; JOURNEY_PATH = path||''; JVIEW.kinds = null;
+  renderSidebar(); renderMain();
+  if(typeof renderJourneySource==='function') renderJourneySource();
+}
+function journeyOf(p){
+  if(!JOURNEY || !p) return [];
+  // 中途改过名的猫：先用 catId 把所有用过的名字收齐，再按名字捞，
+  // 否则只看当前名字会把它改名之前那半场丢掉。
+  const ks = new Set([p.name]);
+  if(p.key) JOURNEY.forEach(e=>{ if(e.catId===p.key && e.cat) ks.add(e.cat); });
+  return JOURNEY.filter(e=> (e.catId && e.catId===p.key) || (e.cat && ks.has(e.cat)));
+}
+function fmtRel(rt){
+  const s=Math.max(0,Math.round(Number(rt)||0));
+  return '+'+String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0');
+}
+function defaultKinds(rows){
+  return new Set(Object.keys(JTYPE_META).filter(k=> rows.some(e=>e.t===k)));
+}
+function jRow(e){
+  const meta = JTYPE_META[e.t] || {cls:'', label:e.t};
+  let body='';
+  if(e.t==='see'){
+    body = `<b>${esc(e.name||e.type||'')}</b> <span class="jv-sub">${esc(e.type||'')}${e.id?' · '+esc(e.id):''}</span>`
+         + (e.memory?`<div class="jv-sub">印象：${esc(e.memory)}</div>`:'');
+  } else if(e.t==='mem'){
+    body = `${esc(e.text||e.hint||'')}<div class="jv-sub">${esc(e.tag||'')}${e.who?' · 来自 '+esc(e.who):''}${e.to?' · 对 '+esc(e.to):''}${e.imp!=null?' · 重要 '+Number(e.imp).toFixed(2):''}</div>`;
+  } else if(e.t==='say'){
+    body = `${esc(e.text||'')}<div class="jv-sub">${esc(e.state||'')}${e.to?' · 对 '+esc(e.to):''}${e.target?' · 说到 '+esc(e.target):''}</div>`;
+  } else if(e.t==='ai'){
+    body = `${esc(e.reply||'')}<div class="jv-sub">${esc(e.state||'')} · ${e.ms}ms${e.ok?'':' · 失败'}${e.note?' · '+esc(e.note):''}</div>`
+         + (e.thought?`<div class="jv-sub">当时在想：${esc(e.thought)}</div>`:'');
+  } else if(e.t==='rumor'){
+    body = `${esc(e.speaker||'')}：「${esc(e.said||'')}」`;
+  } else if(e.t==='name'){
+    body = `<b>${esc(e.old||'')}</b> → <b>${esc(e.new||'')}</b>`
+         + `<div class="jv-sub">${esc(e.from||'')}${e.spoken?'':' · 台词里没说出口'}</div>`;
+  } else if(e.t==='nameobj'){
+    const by = {player:'玩家',self:'它自己',heard:'听来的'}[e.by] || (e.by||'');
+    body = `给 <b>${esc(e.name||'')}</b> 起了名（${esc(e.type||'')}）`
+         + (by?`<div class="jv-sub">来源：${esc(by)}</div>`:'');
+  } else if(e.t==='verdict'){
+    body = `${esc(e.kind)} · 对象 ${esc(e.target||'')} · ${Number(e.stance)>0?'好话':'坏话'}${e.refute?' · 顶回去':''}`
+         + `<div class="jv-sub">好感 ${Number(e.aff||0).toFixed(2)}</div>`;
+  } else if(e.t==='impr'){
+    body = `<b>${esc(e.name||'')}</b> 好感 ${Number(e.aff||0).toFixed(2)} <span class="jv-sub">${esc(e.why||'')}</span>`
+         + (e.desc?`<div class="jv-sub">${esc(e.desc)}</div>`:'');
+  } else if(e.t==='forget'){
+    body = `${esc(e.name||'')} · ${esc(e.what||'')} <span class="jv-sub">好感 ${Number(e.aff||0).toFixed(2)}</span>`;
+  } else {
+    body = esc(JSON.stringify(e).slice(0,200));
+  }
+  return `<div class="jv-row ${meta.cls}"><div class="jv-t">${fmtRel(e.rt)}</div><div class="jv-k">${esc(meta.label)}</div><div class="jv-b">${body}</div></div>`;
+}
+function viewJourney(p){
+  if(!JOURNEY){
+    return `<div class="jv-empty">还没有载入旅程日志。<br>
+      模组选项里勾上「Write journey log (logs/)」，玩一会儿，日志会写进
+      <span class="mono">模组目录/logs/journey-*.jsonl</span>。<br>
+      用 <span class="mono">python memory_extract.py --serve</span> 启动时，本页会自动读最新那份；
+      也可以点右上角「一键载入」，一次把记忆和最新日志都读进来。</div>`;
+  }
+  const all = journeyOf(p);
+  if(!all.length){
+    return `<div class="jv-empty">这份日志里没有「${esc(p.name)}」的记录。<br>（日志开始记录的时候，它可能还没出生。）</div>`;
+  }
+  const rows = filteredJourney(p, all);
+
+  const mode = JVIEW.mode === 'dialogue' ? 'dialogue' : 'timeline';
+  const bar = `<div class="jv-bar">
+      <span class="chip mono">${esc(JOURNEY_NAME)}</span>
+      <button class="jv-chip${mode==='timeline'?' on':''}" data-jm="timeline">分角色时间线</button>
+      <button class="jv-chip${mode==='dialogue'?' on':''}" data-jm="dialogue">对话</button>
+      ${JVIEW.filter ? `<span class="chip warn">只看「${esc(JVIEW.filter)}」<button class="x" data-jf="">✕</button></span>` : ''}
+    </div>`;
+
+  return bar + (mode === 'dialogue' ? viewDialogue(p, rows) : viewJourneyTimeline(p, rows));
+}
+
+/* ---------- 模式一：分角色时间线（原始事件流） ---------- */
+function viewJourneyTimeline(p, rows){
+  const kinds = JVIEW.kinds || defaultKinds(rows);
+  const shown = rows.filter(e=> kinds.has(e.t));
+  const chips = Object.keys(JTYPE_META).map(k=>{
+    const n = rows.filter(e=>e.t===k).length;
+    if(!n) return '';
+    return `<button class="jv-chip${kinds.has(k)?' on':''}" data-jk="${k}">${JTYPE_META[k].label} ${n}</button>`;
+  }).join('');
+
+  return `<div class="jv-bar">
+      <span class="chip">本猫事件 ${rows.length}</span>
+      ${chips}
+      <button class="jv-chip" data-jk="all">全选</button>
+    </div>
+    <div class="jv-list">${shown.map(jRow).join('')}</div>`;
+}
+
+/* ---------- 模式二：对话（谁说的 / 在想什么） ---------- */
+const DLG_GAP = 15;                                  // 秒：超过这个间隔算另一段
+const DLG_RANK = { note:0, inner:0.5, think:1, me:2, them:3 };  // 同一句话撞车时谁说了算
+
+function normText(x){
+  return String(x||'').replace(/[\s，。、！？…~—·,\.!\?;:"'“”‘’（）()\[\]<>《》\-]/g,'');
+}
+
+/* 把事件流压成"轮"：对方说的、我在想的、我说出口的，另加零散的账目注脚 */
+function dlgItems(rows){
+  const mine = new Set();
+  const names = new Set();
+  rows.forEach(e=>{
+    if(e.cat) names.add(e.cat);                                  // 这只猫用过的所有名字
+    if(e.t==='say' && e.text) mine.add(normText(e.text));
+  });
+
+  const items = [];
+  rows.forEach(e=>{
+    if(e.t==='say'){
+      if(e.text) items.push({role:'me', text:e.text, at:e.rt, state:e.state||'', to:e.to||''});
+    } else if(e.t==='mem'){
+      const t = e.text || '';
+      if(!t) return;
+      // kind：0 对方开口（玩家说）1 纯事件没有台词 2 自己的台词 3 同伴的台词
+      // 老日志没有 kind，才退回"文本比对"
+      let role;
+      if(e.kind === 1) return;
+      else if(e.kind === 2) role = mine.has(normText(t)) ? 'me' : 'inner';
+      else if(e.kind === 0 || e.kind === 3) role = 'them';
+      else {
+        // 老日志：没有说话人的一定是事件（"我看见光鼠…"），不是谁说的话
+        if(!e.who) return;
+        if(names.has(e.who)) role = mine.has(normText(t)) ? 'me' : 'inner';
+        else role = 'them';
+      }
+
+      items.push({role: role, text:t, at:e.rt, tag:e.tag||'', who:e.who||''});
+    } else if(e.t==='ai'){
+      items.push({role:'think', text:e.thought||'', reply:e.reply||'', at:e.rt,
+                  state:e.state||'', ms:e.ms, ok:e.ok});
+    } else if(e.t==='name' || e.t==='nameobj' || e.t==='verdict'){
+      items.push({role:'note', text:'', at:e.rt, kind:e.t, e:e});
+    }
+  });
+  return items;
+}
+
+function dlgBlocks(items){
+  const blocks = [];
+  let cur = null;
+
+  items.forEach(it=>{
+    const fresh = !cur
+      || (it.at - cur.last > DLG_GAP)
+      || (it.role === 'them' && cur.hasMe)                       // 对方又开口 = 上一轮说完了
+      || (it.role === 'them' && cur.lastThem && it.who            // 换人说话 = 另一段
+          && it.who !== cur.lastThem);
+    if(fresh){
+      cur = { at: it.at, last: it.at, hasMe:false, hasThem:false,
+              lastThem:'', map:new Map(), order:[] };
+      blocks.push(cur);
+    }
+    cur.last = Math.max(cur.last, it.at);
+    if(it.role === 'me') cur.hasMe = true;
+    if(it.role === 'them'){ cur.hasThem = true; if(it.who) cur.lastThem = it.who; }
+
+    if(it.role === 'note'){ cur.order.push(it); return; }
+
+    // 同一句话常常出现三遍：想了一遍、记了一条、说出口又一条。
+    // 这里按文本去重，只留一条，身份取最高的那个（对方说的 > 我说的 > 想的）。
+    const key = normText(it.text) || normText(it.reply);
+    if(!key) return;
+
+    const hit = cur.map.get(key);
+    if(hit){
+      if((DLG_RANK[it.role]||0) > (DLG_RANK[hit.role]||0)){
+        hit.role = it.role;
+        if(!hit.text && it.text) hit.text = it.text;
+      }
+      if(it.role === 'them' && it.who) hit.who = it.who;
+      if(it.role === 'me' && !hit.state) hit.state = it.state;
+      return;
+    }
+
+    // "想法"里的回复正文跟"我说出口"是同一句，只留思考那一行
+    cur.map.set(key, it);
+    cur.order.push(it);
+  });
+
+  // 全是注脚的段（比如单独一条取名）也留着，但把空段扔掉
+  return blocks.filter(b=> b.order.some(it=> it.role !== 'note'));
+}
+
+function dlgNote(it){
+  const e = it.e || {};
+  if(it.kind === 'name')
+    return `<div class="dlg-note">取名 ${esc(e.old||'—')} → ${esc(e.new||'')}</div>`;
+
+  const k = e.kind || '';
+  let label = '传闻';
+  if(k === 'adopt') label = e.stance > 0 ? '听信好话' : '听信坏话';
+  else if(k === 'reject') label = '不认同';
+  else if(k === 'about') label = e.stance > 0 ? '被夸' : '被说坏话';
+  return `<div class="dlg-note">${esc(label)} · ${esc(e.target || '')}${e.refute ? ' · 顶回去' : ''}</div>`;
+}
+
+function viewDialogue(p, rows){
+  const items = dlgItems(rows);
+  const blocks = dlgBlocks(items);
+  if(!blocks.length) return `<div class="jv-empty">这份日志里还没有能读成对话的内容。</div>`;
+
+  const html = blocks.map(b=>{
+    const body = b.order.map(it=>{
+      if(it.role === 'note') return dlgNote(it);
+
+      if(it.role === 'think'){
+        const meta = [it.state, it.ms ? it.ms + 'ms' : '', it.ok === false ? '失败' : '']
+          .filter(Boolean).join(' · ');
+        return `<div class="dlg-th">${esc(it.text || '（没有留下想法）')}
+                  <span class="dlg-meta">${esc(meta)}</span></div>`;
+      }
+
+      if(it.role === 'inner'){
+        return `<div class="dlg-inner">· ${esc(it.text)}</div>`;
+      }
+
+      if(it.role === 'them'){
+        return `<div class="dlg-turn them">
+                  <span class="dlg-who">${esc(it.who || '对方')}</span>
+                  <div class="dlg-bub">${esc(it.text)}</div>
+                </div>`;
+      }
+
+      return `<div class="dlg-turn me">
+                <div class="dlg-bub">${esc(it.text)}</div>
+                <span class="dlg-who">${esc(p.name)}</span>
+              </div>`;
+    }).join('');
+
+    const who = b.hasThem ? '记忆对话' : '记忆独白';
+    return `<div class="dlg">
+              <div class="dlg-h"><span>${fmtRel(b.at)}</span><span>${who}</span></div>
+              <div class="dlg-body">${body}</div>
+            </div>`;
+  }).join('');
+
+  return `<div class="jv-bar"><span class="chip">${blocks.length} 段</span>
+      <span class="jv-hint">同一句话只留一条（想过的 / 记住的 / 说出口的）</span></div>
+    <div class="dlg-list">${html}</div>`;
+}
+
+async function fetchJourney(){
+  try{
+    const r = await fetch('api/journey', {cache:'no-store'});
+    if(!r.ok) return false;
+    const j = await r.json();
+    if(!j || !j.ok) return false;
+    // 服务端每次都按 memories.json 的位置现找最新一份，这里跟着更新来源显示
+    JSRC.mode='server'; JSRC.name = j.name || ''; JSRC.path = j.path || '';
+    JSRC.lastModified = (j.mtime||0)*1000; JSRC.error='';
+    parseJourney(j.text, j.name, j.path);
+    if(typeof renderJourneySource==='function') renderJourneySource();
+    return true;
+  }catch(e){ return false; }
+}
+
+/* ============================================================ 日志对话（旅程日志的对话化重排） */
+/* 事件与"某个对象"是否相关（印象跳转筛选用） */
+function evtMatchFilter(e, name){
+  if(!name) return true;
+  const n = String(name);
+  const hit = (s)=> s && String(s).indexOf(n) >= 0;
+  switch(e.t){
+    case 'see': return hit(e.name) || hit(e.type);
+    case 'impr': return hit(e.name);
+    case 'forget': return hit(e.name);
+    case 'verdict': return hit(e.target);
+    case 'name': return hit(e.old) || hit(e.new);
+    case 'nameobj': return hit(e.name) || hit(e.type);
+    case 'rumor': return hit(e.speaker) || hit(e.said);
+    default: return hit(e.text) || hit(e.target) || hit(e.thought) || hit(e.reply);
+  }
+}
+function filteredJourney(p, rows){
+  const f = JVIEW.filter;
+  if(!f) return rows;
+  return rows.filter(e=> evtMatchFilter(e, f));
+}
+
+/* 一段对话的话题：从这段里的第一个"有说法"的事件里猜 */
+function topicOf(items){
+  for(const it of items){
+    if(it.role === 'them') return it.text;
+    if(it.role === 'think' && it.state) return it.state;
+    if(it.role === 'me') return it.text;
+  }
+  return '';
+}
+function topicLabel(t){
+  if(!t) return '';
+  return t.length > 16 ? t.slice(0,16) + '…' : t;
+}
+
+/* 渲染一条"事件标记"（写入记忆 / 产生印象 / 遗忘） */
+function jdMark(e){
+  if(e.t === 'mem'){
+    const t = e.text || e.hint || '';
+    if(!t) return '';
+    return `<div class="jd-mark mem">写入记忆，内容：${esc(t)}</div>`;
+  }
+  if(e.t === 'impr'){
+    const why = e.why ? `（${esc(e.why)}）` : '';
+    return `<div class="jd-mark impr">产生印象，对象：${esc(e.name||'')}，内容：${esc(e.desc||'')}${why}</div>`;
+  }
+  if(e.t === 'forget'){
+    if(e.name) return `<div class="jd-mark forget">遗忘印象，对象：${esc(e.name)}</div>`;
+    const t = (e.what || '').replace(/^遗忘记忆：|^淡忘记忆：/, '');
+    return `<div class="jd-mark forget">遗忘记忆，内容：${esc(t||'')}</div>`;
+  }
+  if(e.t === 'verdict'){
+    const k = e.kind || '';
+    let label = '传闻';
+    if(k === 'adopt') label = e.stance > 0 ? '听信好话' : '听信坏话';
+    else if(k === 'reject') label = '不认同';
+    else if(k === 'about') label = e.stance > 0 ? '被夸' : '被说坏话';
+    return `<div class="jd-mark verdict">${esc(label)} · ${esc(e.target||'')}</div>`;
+  }
+  if(e.t === 'name'){
+    return `<div class="jd-mark name">取名 ${esc(e.old||'—')} → ${esc(e.new||'')}</div>`;
+  }
+  if(e.t === 'nameobj'){
+    const by = {player:'玩家',self:'它自己',heard:'听来的'}[e.by] || (e.by||'');
+    return `<div class="jd-mark name">给东西起名 ${esc(e.name||'')}（${esc(e.type||'')}）${by?' · 来源='+by:''}</div>`;
+  }
+  return '';
+}
+
+/* 把对话事件和标记事件按时间穿插进一段 */
+function jdBlockBody(p, evs){
+  const mine = new Set();
+  const names = new Set();
+  const spoken = new Set();   // 已经说出口的话（say 的规范化文本）
+  evs.forEach(e=>{
+    if(e.cat) names.add(e.cat);
+    if(e.t==='say' && e.text){ mine.add(normText(e.text)); spoken.add(normText(e.text)); }
+  });
+
+  const out = [];          // 顺序渲染的条目
+  const seenText = new Map();  // 文本去重
+
+  evs.forEach(e=>{
+    if(e.t === 'mem'){
+      const t = e.text || '';
+      let role;
+      if(e.kind === 1){ out.push({mk:'mem', e}); return; }
+      else if(e.kind === 2) role = spoken.has(normText(t)) ? 'me' : 'inner';
+      else if(e.kind === 0 || e.kind === 3) role = 'them';
+      else {
+        if(!e.who){ out.push({mk:'mem', e}); return; }
+        if(names.has(e.who)) role = spoken.has(normText(t)) ? 'me' : 'inner';
+        else role = 'them';
+      }
+      const key = normText(t);
+      // 已经说出口的话（say 会渲染成气泡），"写入记忆"里同一句不再重复
+      if(key && spoken.has(key)) return;
+      if(key && seenText.has(key)) return;
+      if(key) seenText.set(key, role);
+      out.push({role, text:t, who:e.who||'', state:e.tag||''});
+    }
+    else if(e.t === 'say'){
+      if(!e.text) return;
+      const key = normText(e.text);
+      if(key && seenText.has(key)) return;   // 同一句说两次只留一条
+      if(key) seenText.set(key, 'me');
+      out.push({role:'me', text:e.text, who:'', state:e.state||''});
+    }
+    else if(e.t === 'ai'){
+      const key = normText(e.reply);
+      // 这句话已经说出口了 → ai 只留"内心独白"，reply 不单独渲染（say 会出气泡）
+      const alreadySpoken = key && spoken.has(key);
+      if(alreadySpoken){
+        if(!e.thought) return;
+        out.push({role:'think', text:e.thought||'', state:e.state||'', ms:e.ms, ok:e.ok});
+        return;
+      }
+      if(key && seenText.has(key)) return;
+      if(key) seenText.set(key, 'think');
+      out.push({role:'think', text:e.thought||'', reply:e.reply||'', state:e.state||'', ms:e.ms, ok:e.ok});
+    }
+    else if(e.t === 'impr' || e.t === 'forget' || e.t === 'verdict' || e.t === 'name' || e.t === 'nameobj'){
+      out.push({mk:e.t, e});
+    }
+  });
+
+  return out.map(it=>{
+    if(it.mk) return jdMark(it.e);
+    if(it.role === 'think'){
+      const meta = [it.state, it.ms ? it.ms+'ms' : '', it.ok===false?'失败':''].filter(Boolean).join(' · ');
+      return `<div class="dlg-th">${esc(it.text || '（没有留下想法）')}<span class="dlg-meta">${esc(meta)}</span></div>`;
+    }
+    if(it.role === 'inner') return `<div class="dlg-inner">· ${esc(it.text)}</div>`;
+    if(it.role === 'them'){
+      return `<div class="dlg-turn them"><span class="dlg-who">${esc(it.who||'对方')}</span><div class="dlg-bub">${esc(it.text)}</div></div>`;
+    }
+    return `<div class="dlg-turn me"><div class="dlg-bub">${esc(it.text)}</div><span class="dlg-who">${esc(p.name)}</span></div>`;
+  }).join('');
+}
+
+/* 按时间把事件切成段：间隔 > DLG_GAP，或对方换人 */
+function jdSegments(p, rows){
+  const names = new Set([p.name]);
+  if(p.key) JOURNEY.forEach(e=>{ if(e.catId===p.key && e.cat) names.add(e.cat); });
+
+  const segs = [];
+  let cur = null, lastThem = '';
+  rows.forEach(e=>{
+    // 对方开口：玩家说（kind=0）或同伴说（kind=3）；老日志没 kind 就看 who 是不是别人
+    const isThem = e.t==='mem' && (e.kind===0 || e.kind===3 || (e.who && !names.has(e.who)));
+    const at = e.rt;
+    const fresh = !cur || (at - cur.last > DLG_GAP)
+      || (isThem && cur.lastThem && e.who && e.who !== cur.lastThem);
+    if(fresh){ cur = { at, last:at, lastThem:'', evs:[] }; segs.push(cur); }
+    cur.last = Math.max(cur.last, at);
+    if(isThem && e.who){ cur.lastThem = e.who; }
+    cur.evs.push(e);
+  });
+  return segs;
+}
+
+function viewJourneyDialogue(p){
+  if(!JOURNEY){
+    return `<div class="jv-empty">还没有载入旅程日志。<br>
+      模组选项里勾上「Write journey log (logs/)」，玩一会儿，日志会写进
+      <span class="mono">模组目录/logs/journey-*.jsonl</span>。<br>
+      用 <span class="mono">python memory_extract.py --serve</span> 启动时，本页会自动读最新那份；
+      也可以点右上角「一键载入」，一次把记忆和最新日志都读进来。</div>`;
+  }
+  const all = journeyOf(p);
+  if(!all.length){
+    return `<div class="jv-empty">这份日志里没有「${esc(p.name)}」的记录。<br>（日志开始记录的时候，它可能还没出生。）</div>`;
+  }
+  const rows = filteredJourney(p, all);
+
+  const bar = `<div class="jv-bar">
+    <span class="chip mono">${esc(JOURNEY_NAME)}</span>
+    ${JVIEW.filter ? `<span class="chip warn">只看「${esc(JVIEW.filter)}」<button class="x" data-jf="">✕</button></span>` : ''}
+    <span class="jv-hint">按猫崽记得的对话重排：气泡是谁说了什么、紫条是内心独白、灰条是账目</span>
+  </div>`;
+
+  const segs = jdSegments(p, rows);
+  if(!segs.length) return bar + `<div class="jv-empty">筛选后没有「${esc(JVIEW.filter)}」相关的内容。</div>`;
+
+  const html = segs.map(sg=>{
+    const topic = topicLabel(topicOf(jdItemsForTopic(sg.evs)));
+    const head = `<div class="jd-head">------- 对话开始${topic?'，话题：'+esc(topic):''} ---------</div>`;
+    return `<div class="dlg">${head}<div class="dlg-body">${jdBlockBody(p, sg.evs)}</div></div>`;
+  }).join('');
+
+  return bar + `<div class="dlg-list">${html}</div>`;
+}
+/* 抽一段里能用来猜话题的条目 */
+function jdItemsForTopic(evs){
+  const arr = [];
+  evs.forEach(e=>{
+    if(e.t==='say' && e.text) arr.push({role:'me', text:e.text});
+    else if(e.t==='mem' && e.text) arr.push({role:'them', text:e.text});
+    else if(e.t==='ai' && e.thought) arr.push({role:'think', state:e.state, text:e.thought});
+  });
+  return arr;
+}
+
+function renderMain(){
+  const p = pup();
+  const m = $('#main');
+  if(!p){ m.innerHTML = `<div id="empty"><div class="big">还没有载入记忆</div><p>拖入整个「Noisy Pup-AI」文件夹，或点右上角「一键载入」。</p><button class="btn primary" id="btnSample">查看示例数据</button></div>`; $('#btnSample').onclick = ()=>loadSample(); return; }
+
+  const tags = [...new Set(p.mem.map(x=>x.EventTag).filter(Boolean))].sort();
+  if(F.tag!=='all' && !tags.includes(F.tag)) F.tag='all';
+
+  const strengthAvg = p.mem.length ? p.mem.reduce((a,b)=>a+Number(b.Strength||0),0)/p.mem.length : 0;
+  const recall = p.mem.reduce((a,b)=>a+Number(b.RecallCount||0),0);
+
+  const hero = `
+  <div class="hero">
+    <div class="hero-top">
+      <div class="hero-ava">${esc(initials(p.name))}</div>
+      <div style="min-width:0">
+        <h2>${esc(p.name)}
+          <span class="chip mono">${esc(p.key)}</span>
+          <span class="chip a">${esc(nameSourceLabel(p.nameSource))}</span>
+        </h2>
+        <div class="line2">
+          <span class="chip t">${esc(p.speciesZh)}${p.species&&p.species!==p.speciesZh?' · '+esc(p.species):''}</span>
+          <span class="chip" style="border-color:${emoColor(p.emotion)}33;color:${emoColor(p.emotion)}">
+            <span class="emod" style="background:${emoColor(p.emotion)}"></span>${esc(p.emotion||'无情绪')}${p.emoAge!=null?' · '+fmtAge(p.emoAge):''}
+          </span>
+          <span class="chip mono">首次 ${fmtTick(p.firstTick)}</span>
+          <span class="chip mono">最近 ${fmtTick(p.lastTick)}</span>
+        </div>
+      </div>
+      <div class="hero-actions">
+        <button class="btn sm" data-exp="md">导出 Markdown</button>
+        <button class="btn sm" data-exp="csv">导出 CSV</button>
+        <button class="btn sm" data-exp="json">导出 JSON</button>
+        <button class="btn sm" data-exp="txt">导出对话 TXT</button>
+      </div>
+    </div>
+    <div class="stats">
+      <div class="stat"><div class="k">长期记忆</div><div class="v">${p.mem.length}<small>条</small></div></div>
+      <div class="stat"><div class="k">关系印象</div><div class="v">${p.imps.length}<small>个</small></div></div>
+      <div class="stat"><div class="k">平均强度</div><div class="v">${strengthAvg.toFixed(2)}</div></div>
+      <div class="stat"><div class="k">累计召回</div><div class="v">${recall}<small>次</small></div></div>
+      <div class="stat"><div class="k">最近台词</div><div class="v">${p.lines.length}<small>句</small></div></div>
+    </div>
+  </div>`;
+
+  const tabs = `
+  <div class="tabs">
+    ${tabBtn('overview','概览','')}
+    ${tabBtn('timeline','记忆时间线', p.mem.length)}
+    ${tabBtn('chat','记忆对话', p.mem.filter(x=>x.Text).length)}
+    ${tabBtn('impressions','印象与关系', p.imps.length)}
+    ${tabBtn('journey','旅程日志', JOURNEY?journeyOf(p).length:'')}
+    ${tabBtn('jdialogue','日志对话', JOURNEY?journeyOf(p).length:'')}
+    ${tabBtn('raw','原始数据','')}
+  </div>`;
+
+  let body='';
+  if(TAB==='overview') body = viewOverview(p,tags);
+  else if(TAB==='timeline') body = viewTimeline(p,tags);
+  else if(TAB==='chat') body = viewChat(p);
+  else if(TAB==='impressions') body = viewImpressions(p);
+  else if(TAB==='journey') body = viewJourney(p);
+  else if(TAB==='jdialogue') body = viewJourneyDialogue(p);
+  else body = viewRaw(p);
+
+  m.innerHTML = hero + tabs + body;
+
+  m.querySelectorAll('.tab').forEach(n=> n.onclick = ()=>{ TAB=n.dataset.t; renderMain(); });
+  m.querySelectorAll('[data-jm]').forEach(n=> n.onclick = ()=>{
+    JVIEW.mode = n.dataset.jm; JVIEW.kinds = null; renderMain();
+  });
+  m.querySelectorAll('[data-jk]').forEach(n=> n.onclick = ()=>{
+    const k = n.dataset.jk;
+    const rows = journeyOf(p);
+    if(k==='all'){ JVIEW.kinds = defaultKinds(rows); }
+    else{
+      const set = new Set(JVIEW.kinds || defaultKinds(rows));
+      if(set.has(k)) set.delete(k); else set.add(k);
+      JVIEW.kinds = set;
+    }
+    renderMain();
+  });
+  // 清除对象筛选（✕）
+  m.querySelectorAll('[data-jf]').forEach(n=> n.onclick = ()=>{
+    JVIEW.filter = null; renderMain();
+  });
+  // 印象标签：跳转到旅程日志，只看这个对象
+  m.querySelectorAll('[data-im]').forEach(n=> n.onclick = ()=>{
+    JVIEW.filter = n.dataset.im;
+    TAB = 'journey';
+    renderMain();
+  });
+  m.querySelectorAll('[data-exp]').forEach(n=> n.onclick = ()=> exportPup(p, n.dataset.exp));
+  const cr=$('#copyRaw'); if(cr) cr.onclick = ()=>{
+    navigator.clipboard.writeText(JSON.stringify(p.raw,null,2)).then(()=>toast('已复制这只猫的原始记录'),()=>toast('复制失败，请手动选择文本'));
+  };
+  const dr=$('#dlRaw'); if(dr) dr.onclick = ()=>{
+    const o={}; o[p.key]=p.raw;
+    download(p.name+'_原始记录.json', JSON.stringify(o,null,2), 'application/json');
+    toast('已下载原始记录');
+  };
+  m.querySelectorAll('[data-cm]').forEach(n=> n.onclick = ()=>{ F.chatMode = n.dataset.cm; renderMain(); });
+  bindTimeline(p);
+}
+function tabBtn(id,label,cnt){
+  return `<button class="tab${TAB===id?' on':''}" data-t="${id}">${label}${cnt!==''?`<span class="cnt">${cnt}</span>`:''}</button>`;
+}
+
+/* ---------- 概览 ---------- */
+function viewOverview(p,tags){
+  const tagCount = {};
+  p.mem.forEach(x=>{ const k=x.EventTag||'（无）'; tagCount[k]=(tagCount[k]||0)+1; });
+  const tagRows = Object.entries(tagCount).sort((a,b)=>b[1]-a[1]);
+  const maxTag = Math.max(1,...tagRows.map(r=>r[1]));
+
+  const kindCount = [0,0,0,0];
+  p.mem.forEach(x=>{ if(kindCount[x.Kind]!=null) kindCount[x.Kind]++; });
+
+  const lines = p.lines.slice().reverse();
+  const counters = Object.entries(p.counters||{});
+
+  return `
+  <div class="panel">
+    <h3>这是什么猫 <span class="tag">profile</span></h3>
+    <div class="kv">
+      <div class="row"><span class="k">存档键</span><span class="v mono">${esc(p.key)}</span></div>
+      <div class="row"><span class="k">物种</span><span class="v">${esc(p.speciesZh)} <span class="mono" style="color:var(--muted);font-weight:400">${esc(p.species)}</span></span></div>
+      <div class="row"><span class="k">当前情绪</span><span class="v" style="color:${emoColor(p.emotion)}">${esc(p.emotion||'—')}</span></div>
+      <div class="row"><span class="k">情绪持续</span><span class="v">${p.emoAge!=null?fmtSpan(p.emoAge):'—'}</span></div>
+      <div class="row"><span class="k">首次进档</span><span class="v mono">${fmtTick(p.firstTick)}</span></div>
+      <div class="row"><span class="k">最后一次说话</span><span class="v mono">${fmtTick(p.lastTick)}</span></div>
+      <div class="row"><span class="k">命名来源</span><span class="v">${esc(nameSourceLabel(p.nameSource))}${NAME_SOURCES[p.nameSource]?' · '+(NAME_SOURCES[p.nameSource].desc||''):''}</span></div>
+      <div class="row"><span class="k">计数器</span><span class="v">${counters.length? counters.map(([k,v])=>`${esc(k)} ${v}`).join(' · ') : '空'}</span></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h3>记忆构成 <span class="tag">memory mix</span></h3>
+    <div class="bars">
+      ${tagRows.map(([t,n])=>`<div class="bar-row">
+        <span class="lb" title="${esc(t)}">${esc(tagDesc(t))}</span>
+        <span class="bar-track"><span class="bar-fill" style="width:${Math.round(n/maxTag*100)}%"></span></span>
+        <span class="n">${n}</span></div>`).join('') || '<div style="color:var(--muted);font-size:12.5px">没有长期记忆</div>'}
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px">
+      ${KIND.map((k,i)=>`<span class="chip ${k.cls}" title="${esc(k.label)}">${esc(k.short)} ${kindCount[i]}</span>`).join('')}
+      <span class="chip">标签种类 ${tags.length}</span>
+    </div>
+  </div>
+
+  ${(()=>{
+    const pt={};
+    p.mem.forEach(m=>{
+      if(!(m.Text||'').trim()) return;
+      const who = partnerOf(m); if(!who) return;
+      const d = pt[who] || (pt[who]={self:0,heard:0,last:null});
+      if(m._role==='self') d.self++; else d.heard++;
+      if(!d.last || Number(m.AgeSeconds) < Number(d.last.AgeSeconds)) d.last = m;
+    });
+    const rows = Object.entries(pt).sort((a,b)=> (b[1].self+b[1].heard)-(a[1].self+a[1].heard));
+    if(!rows.length) return '';
+    return `<div class="panel">
+    <h3>和谁说过话 <span class="tag">partners</span></h3>
+    <div class="hintline">「说」＝它对这个对象说了几句，「听」＝对方对它说了几句。对着物品说话时，对象直接取自存档（Addressee）；其余是按上下文推断的。</div>
+    ${rows.map(([who,d])=>`<div style="display:flex;gap:12px;align-items:baseline;padding:6px 0;border-bottom:1px dashed var(--line2);font-size:12.5px">
+      <span style="font-weight:650;min-width:84px">${esc(who)}</span>
+      <span class="chip t" style="font-size:11px">说 ${d.self}</span>
+      <span class="chip v" style="font-size:11px">听 ${d.heard}</span>
+      <span style="flex:1;text-align:right;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc((d.last.Text||'').slice(0,28))}</span>
+    </div>`).join('')}
+  </div>`;
+  })()}
+
+  <div class="panel">
+    <h3>最近说的六句 <span class="tag">recent lines</span></h3>
+    <div class="hintline">存档里保留的最后几句话，倒序排列（最后一句在最上面）。</div>
+    ${lines.length? lines.map((l,i)=>`<div class="quote">${esc(l)}</div>`).join('') : '<div style="color:var(--muted);font-size:12.5px">还没有台词记录</div>'}
+  </div>`;
+}
+
+/* ---------- 时间线 ---------- */
+function filtered(p){
+  const q = F.q.trim().toLowerCase();
+  let arr = p.mem.filter(x=>{
+    if(!F.kinds.has(Number(x.Kind))) return false;
+    if(F.cat!=='all' && Number(x.Category)!==Number(F.cat)) return false;
+    if(F.tag!=='all' && (x.EventTag||'')!==F.tag) return false;
+    if(!q) return true;
+    const hay = [x.Text,x.Hint,x.SpeakerName,x.EventTag,tagDesc(x.EventTag)].join(' ').toLowerCase();
+    return hay.includes(q);
+  });
+  const cmp = {
+    new: (a,b)=> Number(a.AgeSeconds)-Number(b.AgeSeconds),
+    old: (a,b)=> Number(b.AgeSeconds)-Number(a.AgeSeconds),
+    strong: (a,b)=> Number(b.Strength||0)-Number(a.Strength||0),
+    imp: (a,b)=> Number(b.Importance||0)-Number(a.Importance||0),
+    sal: (a,b)=> Number(b.Salience||0)-Number(a.Salience||0),
+    recall:(a,b)=> Number(b.RecallCount||0)-Number(a.RecallCount||0)
+  }[F.sort] || null;
+  if(cmp) arr = arr.slice().sort(cmp);
+  return arr;
+}
+function viewTimeline(p,tags){
+  const arr = filtered(p);
+  return `
+  <div class="toolbar">
+    <label class="search">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <input id="fq" placeholder="搜台词、提示、标签、说话人…" value="${esc(F.q)}">
+    </label>
+    <div class="kind-chips" id="kindChips">
+      ${KIND.map((k,i)=>`<button class="kchip${F.kinds.has(i)?' on':''}" data-k="${i}">${esc(k.short)}</button>`).join('')}
+    </div>
+    <select id="fcat">
+      <option value="all">全部分类</option>
+      ${CAT.map((c,i)=>`<option value="${i}"${String(F.cat)===String(i)?' selected':''}>${esc(c)}</option>`).join('')}
+    </select>
+    <select id="ftag">
+      <option value="all">全部标签</option>
+      ${tags.map(t=>`<option value="${esc(t)}"${F.tag===t?' selected':''}>${esc(tagDesc(t))}（${esc(t)}）</option>`).join('')}
+    </select>
+    <select id="fsort">
+      ${[['new','最新在前'],['old','最旧在前'],['strong','强度最高'],['imp','重要度最高'],['sal','显著度最高'],['recall','被想起最多']]
+        .map(([v,l])=>`<option value="${v}"${F.sort===v?' selected':''}>${l}</option>`).join('')}
+    </select>
+    <div class="tb-right">
+      <label style="display:flex;align-items:center;gap:5px;cursor:pointer">
+        <input type="checkbox" id="fexp" ${F.useFilterExport?'checked':''}>导出套用筛选
+      </label>
+      <span style="color:var(--ink2)">${arr.length} / ${p.mem.length} 条</span>
+    </div>
+  </div>
+  <div class="mem-list" id="memList">
+    ${arr.length? arr.map(m=>memCard(m,p)).join('') : '<div class="empty-list">当前筛选条件下没有记忆</div>'}
+  </div>`;
+}
+function memCard(m, p){
+  const k = KIND[Number(m.Kind)] || {short:'未知',cls:'k1'};
+  const t = m.EventTag||'';
+  const type = tagType(t);
+  const att = attitudeOf(type);
+  const txt = (m.Text||'').trim();
+  const isOwn = Number(m.Kind)===2;
+  const st = Number(m.Strength||0);
+  return `<div class="mem">
+    <div class="mem-head">
+      <span class="badge ${k.cls}" title="${esc(k.label||'')}">${esc(k.short)}</span>
+      <span class="tagtxt">${esc(tagDesc(t))}</span>
+      <span class="tagraw">${esc(t||'—')}</span>
+      <span class="age">${fmtAge(m.AgeSeconds)}</span>
+    </div>
+    ${txt ? `<div class="body${isOwn?' own':''}">${isOwn?'':`<span class="spkname" style="color:${speakerColor(m._role,m._speaker,p.name)}">${esc(m._speaker)}：</span>`}${esc(txt)}</div>`
+          : `<div class="body empty">（这一条只留了事件，没有台词）</div>`}
+    ${m.Hint ? `<div class="hint">${esc(m.Hint)}</div>` : ''}
+    ${att && !txt ? `<div class="ref">猫崽对这个东西的参考看法：<b>${esc(att.f)}</b>（强度 ${att.s}/5）——「${esc(att.v)}」</div>` : ''}
+    <div class="mem-foot">
+      <span class="mf">说话人 <b style="color:${speakerColor(m._role,m._speaker,p.name)}">${esc(m._speaker||'—')}</b>${m._role!=='self'?`<span style="color:var(--muted)">（${roleZh(m._role)}）</span>`:''}</span>
+      ${m._to&&m._to.who?`<span class="mf">${esc(toLabel(m))}</span>`:''}
+      <span class="mf">强度 <span class="mbar${st<0.4?' warn':''}"><i style="width:${Math.round(st*100)}%"></i></span> <span class="mono">${num(st)}</span></span>
+      <span class="mf">重要 <span class="mono">${num(m.Importance)}</span></span>
+      <span class="mf">显著 <span class="mono">${num(m.Salience)}</span></span>
+      <span class="mf">召回 <span class="mono">${Number(m.RecallCount||0)}</span> 次</span>
+      <span class="mf">类别 ${esc(CAT[Number(m.Category)]||'—')}</span>
+      <span class="idx" style="margin-left:auto">#${m._i+1}</span>
+    </div>
+  </div>`;
+}
+function bindTimeline(p){
+  const fq = $('#fq');
+  if(fq){
+    fq.oninput = ()=>{ F.q=fq.value; const arr=filtered(p); $('#memList').innerHTML = arr.length? arr.map(m=>memCard(m,p)).join('') : '<div class="empty-list">当前筛选条件下没有记忆</div>'; };
+    fq.onkeydown = e=>{ if(e.key==='Escape'){ fq.value=''; F.q=''; fq.oninput(); } };
+  }
+  document.querySelectorAll('#kindChips .kchip').forEach(b=>{
+    b.onclick = ()=>{
+      const k = Number(b.dataset.k);
+      if(F.kinds.has(k)){ if(F.kinds.size===1) return; F.kinds.delete(k); } else F.kinds.add(k);
+      renderMain();
+    };
+  });
+  const fc=$('#fcat'); if(fc) fc.onchange=()=>{ F.cat=fc.value; renderMain(); };
+  const ft=$('#ftag'); if(ft) ft.onchange=()=>{ F.tag=ft.value; renderMain(); };
+  const fs=$('#fsort'); if(fs) fs.onchange=()=>{ F.sort=fs.value; renderMain(); };
+  const fx=$('#fexp'); if(fx) fx.onchange=()=>{ F.useFilterExport=fx.checked; toast(fx.checked?'导出时将只包含当前筛选结果':'导出时包含全部记忆'); };
+}
+
+/* ---------- 对话 ---------- */
+function viewChat(p){
+  const mode = F.chatMode || 'all';
+  const lines = p.mem.filter(x=>(x.Text||'').trim());
+  const isPlayer = x => x._role==='player' || (x._to && x._to.kind==='player');
+  // "与同伴"＝说话方和听的一方都是猫（同伴说给本猫，或本猫说给同伴）
+  const isPup = x => x._role!=='player' && !!x._to && (x._to.kind==='pup' || x._to.kind==='self');
+  const cnt = {
+    all: lines.length,
+    player: lines.filter(isPlayer).length,
+    pup: lines.filter(isPup).length,
+    silent: p.mem.filter(x=>!(x.Text||'').trim() && x.Hint).length
+  };
+  const match = x=>{
+    const hasText = !!(x.Text||'').trim();
+    if(mode==='silent') return !hasText;
+    if(!hasText) return false;
+    if(mode==='player') return isPlayer(x);
+    if(mode==='pup') return isPup(x);
+    return true;
+  };
+  const arr = p.mem.filter(match).slice().sort((a,b)=> Number(b.AgeSeconds)-Number(a.AgeSeconds));
+  const parts = [];
+  lines.forEach(x=>{ if(!parts.includes(x._speaker)) parts.push(x._speaker); });
+  const chip = (k,l)=>`<button class="kchip${mode===k?' on':''}" data-cm="${k}">${l} <span class="c">${cnt[k]}</span></button>`;
+
+  return `
+  <div class="panel">
+    <h3>对话回放 <span class="tag">by speaker</span></h3>
+    <div class="hintline">
+      记忆里只存了“谁说的”，没存“说给谁听”。所以这里按说话人分色：<b style="color:#3d6c9e">蓝＝你</b>、<b style="color:#2f6f66">绿＝${esc(p.name)}自己</b>、<b style="color:#5f5590">紫＝同伴</b>。
+      “对谁说”是按上下文推的，标「推断」的尤其不确定。
+    </div>
+    <div class="chatbar">
+      ${chip('all','全部')}${chip('player','与玩家')}${chip('pup','与同伴')}${chip('silent','没出声')}
+      <span class="chatinfo">说话人：${parts.map(esc).join('、')||'—'}</span>
+    </div>
+    <div class="chat">
+      ${arr.length? arr.map(x=>{
+        if(!(x.Text||'').trim()) return `<div class="silent">${esc(x.Hint||'（没出声）')}</div>`;
+        const role = x._role || 'self';
+        const name = x._speaker || p.name;
+        const cls = role==='player' ? 'me' : (role==='self' ? 'own' : 'peer');
+        const color = speakerColor(role, name, p.name);
+        const to = toLabel(x);
+        return `<div class="msg ${cls}">
+          <div class="wh" style="background:${color}">${esc(initials(name))}</div>
+          <div class="bubwrap">
+            <div class="who2"><b style="color:${color}">${esc(name)}</b>${role==='self'?'':`<span>${roleZh(role)}</span>`}${to?`<span class="tochip">${esc(to)}</span>`:''}</div>
+            <div class="bub">${esc(x.Text)}
+              <div class="meta2"><span>${fmtAge(x.AgeSeconds)}</span><span>${esc(tagDesc(x.EventTag))}</span></div>
+            </div>
+          </div>
+        </div>`;
+      }).join('') : '<div class="empty-list">没有符合条件的对话</div>'}
+    </div>
+  </div>`;
+}
+
+/* ---------- 印象 ---------- */
+function viewImpressions(p){
+  if(!p.imps.length) return `<div class="panel"><h3>印象与关系</h3><div class="empty-list">这只猫还没记住任何对象</div></div>`;
+  const arr = p.imps.slice().sort((a,b)=> Math.abs(b._aff)-Math.abs(a._aff) || Number(b.Met||0)-Number(a.Met||0));
+  return `
+  <div class="panel">
+    <h3>印象与关系 <span class="tag">impressions</span></h3>
+    <div class="hintline">亲近度 = 初始好感（态度表点数 × 0.04）+ 累计行为 + 最近语气（约 8 分钟衰减），再按「遗忘」标签每枚朝 0 靠 0.1，最后压到 −1 ~ 1。归零后再落一枚标签，这条印象会被删掉；再次见到、被谈起都会撤销全部遗忘标签。名字若已改过，会同时标出现名。</div>
+    <div class="imp-grid">
+    ${arr.map(im=>{
+      const a = im._aff, isYou = im.Type==='Slugcat' || im.Name==='你';
+      const att = attitudeOf(im.Type);
+      const shown = im._live && im._live!==im.Name ? im.Name+'（现名 '+im._live+'）' : im.Name;
+      const target = im._live || im.Name;   // 跳转筛选用的对象名（现名优先）
+      const cnt = IMP_FIELDS.filter(([f])=>Number(im[f]||0)>0)
+        .map(([f,l])=>`<span class="cnt-chip${IMP_NEG.includes(f)?' neg':''} click" data-im="${esc(target)}" title="在旅程日志里只看「${esc(target)}」">${l} <b>${Number(im[f])}</b></span>`).join('');
+      return `<div class="imp">
+        <div class="imp-top">
+          <div class="ava" style="width:34px;height:34px;border-radius:10px">${esc(initials(im._live||im.Name))}</div>
+          <div style="min-width:0;flex:1">
+            <div class="nm">${esc(shown)}${isYou?' <span class="chip b" style="font-size:10px">玩家</span>':''}</div>
+            <div class="tp">${esc(im.Type||'?')} · ${esc(zhOf(im.Type))} · 见面 ${Number(im.Met||0)} 次</div>
+            <div class="tp" style="margin-top:2px">初始 ${im._base>=0?'+':''}${im._base.toFixed(2)}${im._sent?`　最近语气 ${im._sent>0?'+':''}${im._sent.toFixed(2)}`:''}</div>
+            ${forgetTags(im)?`<div class="tp" style="margin-top:2px;color:var(--rose)">遗忘 ${forgetTags(im)} 枚（每枚朝 0 靠 0.1）${Math.abs(a)<1e-4?' · 已归零，下一枚就删掉':''}</div>`:''}
+          </div>
+        </div>
+        <div class="aff">
+          <div class="aff-top"><span>亲近度</span><span class="mono" style="color:${a<0?'var(--rose)':'var(--teal)'}">${a>0?'+':''}${a.toFixed(2)}</span></div>
+          <div class="aff-track"><span class="mid"></span>
+            <span class="aff-fill ${a<0?'neg':'pos'}" style="width:${Math.abs(a)*50}%"></span>
+          </div>
+        </div>
+        <div class="mood" style="color:${a<0?'var(--rose)':(a>0.15?'var(--teal)':'var(--ink2)')}">「${esc(mood(im,isYou,im._now))}」</div>
+        <div class="desc">它记得：${esc(describeImp(im,isYou))}</div>
+        <div class="cnts">${cnt || '<span class="cnt-chip">只有见面记录</span>'}</div>
+        ${att? `<div class="ref2"><div class="ttl">参考态度（模组内置）</div><b style="color:#2f6f66">${esc(att.f)}</b> · 强度 ${att.s}/5 · 初始好感 ${attitudeScore(im.Type)} 点 —— 「${esc(att.v)}」</div>`:''}
+      </div>`;
+    }).join('')}
+    </div>
+  </div>`;
+}
+
+/* ---------- 原始 ---------- */
+function viewRaw(p){
+  const json = JSON.stringify(p.raw, null, 2);
+  return `<div class="panel">
+    <h3>原始记录 <span class="tag">raw json</span>
+      <span style="margin-left:auto;display:flex;gap:6px">
+        <button class="btn sm" id="copyRaw">复制</button>
+        <button class="btn sm" id="dlRaw">下载这段</button>
+      </span>
+    </h3>
+    <div class="hintline">就是 memories.json 里 <span class="mono">Pups["${esc(p.key)}"]</span> 这一节的原文。</div>
+    <pre class="raw">${esc(json)}</pre>
+  </div>`;
+}
+
+/* ============================================================ 导出 */
+function pad(n){ return String(n).padStart(2,'0'); }
+function stamp(){
+  const d=new Date();
+  return d.getFullYear()+pad(d.getMonth()+1)+pad(d.getDate())+'-'+pad(d.getHours())+pad(d.getMinutes());
+}
+function download(name, content, mime, bom){
+  const blob = new Blob([bom?'\uFEFF':'', content], {type:mime||'text/plain;charset=utf-8'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(a.href), 5000);
+}
+function memRows(p){
+  const src = F.useFilterExport ? filtered(p) : p.mem.slice().sort((a,b)=>Number(a.AgeSeconds)-Number(b.AgeSeconds));
+  return src;
+}
+function toCSV(rows, pupName, pupKey){
+  const head = ['猫名','存档键','序号','距今秒','距今','类型','分类','标签','标签说明','说话人','角色','对谁说','文本','提示','重要度','显著度','强度','召回次数'];
+  const q = v => '"'+String(v==null?'':v).replace(/"/g,'""')+'"';
+  const lines = [head.map(q).join(',')];
+  rows.forEach((m,i)=>{
+    const k = KIND[Number(m.Kind)];
+    lines.push([pupName,pupKey,i+1, Math.round(Number(m.AgeSeconds)||0), fmtAge(m.AgeSeconds),
+      (k?k.short:'?'), CAT[Number(m.Category)]||'', m.EventTag||'', tagDesc(m.EventTag),
+      m._speaker||m.SpeakerName||'', roleZh(m._role)||'', toLabel(m), (m.Text||'').replace(/\r?\n/g,' '), (m.Hint||'').replace(/\r?\n/g,' '),
+      num(m.Importance), num(m.Salience), num(m.Strength), Number(m.RecallCount||0)
+    ].map(q).join(','));
+  });
+  return lines.join('\r\n');
+}
+function toMD(p){
+  const rows = memRows(p);
+  const L = [];
+  L.push('# '+p.name+' · 记忆导出','');
+  L.push('> Noisy Pup-AI 记忆文件解析 · 存档键 `'+p.key+'` · 导出时间 '+new Date().toLocaleString('zh-CN'));
+  if(F.useFilterExport && (F.q||F.tag!=='all'||F.cat!=='all'||F.kinds.size<4))
+    L.push('> 注意：本次导出应用了界面筛选，共 '+rows.length+' / '+p.mem.length+' 条。');
+  L.push('','## 基本信息','');
+  L.push('| 项目 | 值 |','|---|---|');
+  L.push('| 名字 | '+p.name+' |');
+  L.push('| 物种 | '+p.speciesZh+'（'+p.species+'） |');
+  L.push('| 命名来源 | '+nameSourceLabel(p.nameSource)+' |');
+  L.push('| 当前情绪 | '+(p.emotion||'—')+(p.emoAge!=null?'（持续 '+fmtAge(p.emoAge)+'）':'')+' |');
+  L.push('| 首次进档 | '+fmtTick(p.firstTick)+' |');
+  L.push('| 最后说话 | '+fmtTick(p.lastTick)+' |');
+  L.push('| 长期记忆 | '+p.mem.length+' 条 |');
+  L.push('| 关系印象 | '+p.imps.length+' 个 |');
+  L.push('');
+  const cs = Object.entries(p.counters||{});
+  if(cs.length){ L.push('计数器：'+cs.map(([k,v])=>k+'='+v).join('，'),''); }
+
+  L.push('## 印象与关系','');
+  if(!p.imps.length) L.push('_还没有任何对象被记住_','');
+  p.imps.slice().sort((a,b)=>Math.abs(b._aff)-Math.abs(a._aff)).forEach(im=>{
+    const isYou = im.Type==='Slugcat'||im.Name==='你';
+    L.push('### '+(im._live&&im._live!==im.Name? im.Name+'（现名 '+im._live+'）':im.Name)+'　`'+im.Type+'`','');
+    L.push('- 亲近度：'+(im._aff>0?'+':'')+im._aff.toFixed(2)+'　（'+mood(im,isYou,im._now)+'）');
+    L.push('- 初始好感：'+(im._base>0?'+':'')+im._base.toFixed(2)+'　最近语气：'+(im._sent>0?'+':'')+im._sent.toFixed(2));
+    L.push('- 它记得：'+describeImp(im,isYou));
+    L.push('- 见面 '+Number(im.Met||0)+' 次　最后见到：'+fmtTick(im.LastTick));
+    const bits = IMP_FIELDS.filter(([f])=>Number(im[f]||0)>0).map(([f,l])=>l+' '+im[f]);
+    if(bits.length) L.push('- 行为计数：'+bits.join('、'));
+    const att = attitudeOf(im.Type);
+    if(att) L.push('- 参考态度：**'+att.f+'**（'+att.s+'/5）—— 「'+att.v+'」');
+    L.push('');
+  });
+
+  L.push('## 长期记忆（'+rows.length+' 条）','');
+  rows.forEach((m,i)=>{
+    const k = KIND[Number(m.Kind)];
+    L.push('### '+(i+1)+'. '+(k?k.short:'?')+' · '+tagDesc(m.EventTag)+'　`'+(m.EventTag||'—')+'`','');
+    if(m.Text) L.push('> '+m.Text.replace(/\n/g,'\n> '),'');
+    else L.push('_（没有台词，只留下了事件）_','');
+    if(m.Hint) L.push('提示：'+m.Hint+'','');
+    L.push('- 说话人：'+(m._speaker||m.SpeakerName||'—')+(m._role && m._role!=='self' ? '（'+roleZh(m._role)+'）' : '')+(m._to&&m._to.who ? '　'+toLabel(m) : ''));
+    L.push('- 时间：'+fmtAge(m.AgeSeconds)+'　强度 '+num(m.Strength)+'　重要 '+num(m.Importance)+'　显著 '+num(m.Salience)+'　召回 '+Number(m.RecallCount||0)+' 次');
+    L.push('- 分类：'+(CAT[Number(m.Category)]||'—')+'　存档序号 #'+(m._i+1),'');
+    const type = tagType(m.EventTag); const att = attitudeOf(type);
+    if(att && !m.Text) L.push('> 参考态度：'+att.f+'（'+att.s+'/5）——「'+att.v+'」','');
+  });
+
+  if(p.lines.length){
+    L.push('## 最近台词','');
+    p.lines.slice().reverse().forEach(l=> L.push('> '+l,''));
+  }
+  L.push('---','','由「Noisy Pup 记忆提取器」生成');
+  return L.join('\n');
+}
+function toTXT(p){
+  const arr = p.mem.filter(x=>x.Text).slice().sort((a,b)=>Number(b.AgeSeconds)-Number(a.AgeSeconds));
+  const L = ['# '+p.name+' 对话记录（'+p.key+'）', '> 由早到晚 · 共 '+arr.length+' 句', ''];
+  arr.forEach(x=>{
+    const who = x._speaker || (Number(x.Kind)===2 ? p.name : (x.SpeakerName||'?'));
+    const to = toLabel(x);
+    L.push('['+fmtAge(x.AgeSeconds)+'] '+(roleZh(x._role)==='玩家'?'你':who)+'：'+x.Text+(to?'　'+to:''));
+    if(x.Hint) L.push('    · '+x.Hint);
+  });
+  return L.join('\r\n');
+}
+function exportPup(p, kind){
+  const base = p.name.replace(/[\\/:*?"<>|]/g,'_');
+  if(kind==='json'){
+    const obj = {}; obj[p.key] = p.raw;
+    download(base+'_记忆.json', JSON.stringify({Version:DB.Version, Game:DB.Game, Pups:obj}, null, 2), 'application/json');
+  } else if(kind==='md'){
+    download(base+'_记忆.md', toMD(p), 'text/markdown');
+  } else if(kind==='csv'){
+    download(base+'_记忆.csv', toCSV(memRows(p), p.name, p.key), 'text/csv', true);
+  } else {
+    download(base+'_对话.txt', toTXT(p));
+  }
+  toast('已导出：'+base+'（'+kind.toUpperCase()+'）');
+}
+
+/* 全部导出 */
+function exportAll(kind){
+  if(!PUPS.length) return;
+  const s = stamp();
+  if(kind==='json'){
+    const obj={}; PUPS.forEach(p=>obj[p.key]=p.raw);
+    download('全部猫崽_记忆_'+s+'.json', JSON.stringify({Version:DB.Version,Game:DB.Game,Pups:obj},null,2),'application/json');
+  } else if(kind==='md'){
+    const L=['# Noisy Pup 全部记忆导出','','> 共 '+PUPS.length+' 只猫崽 · '+PUPS.reduce((a,b)=>a+b.mem.length,0)+' 条长期记忆 · '+new Date().toLocaleString('zh-CN'),'','## 目录',''];
+    PUPS.forEach(p=>L.push('- ['+p.name+'（'+p.key+'）](#'+p.name+') — 记忆 '+p.mem.length+' 条'));
+    L.push('');
+    PUPS.forEach(p=>{ L.push('---','',toMD(p),''); });
+    download('全部猫崽_记忆_'+s+'.md', L.join('\n'),'text/markdown');
+  } else if(kind==='csv'){
+    const all=[]; PUPS.forEach(p=>{ memRows(p).forEach(m=>all.push({p,m})); });
+    const head=['猫名','存档键','序号','距今秒','距今','类型','分类','标签','标签说明','说话人','角色','对谁说','文本','提示','重要度','显著度','强度','召回次数'];
+    const q=v=>'"'+String(v==null?'':v).replace(/"/g,'""')+'"';
+    const lines=[head.map(q).join(',')];
+    PUPS.forEach(p=>memRows(p).forEach((m,i)=>{
+      const k=KIND[Number(m.Kind)];
+      lines.push([p.name,p.key,i+1,Math.round(Number(m.AgeSeconds)||0),fmtAge(m.AgeSeconds),k?k.short:'?',
+        CAT[Number(m.Category)]||'',m.EventTag||'',tagDesc(m.EventTag),m._speaker||m.SpeakerName||'',
+        roleZh(m._role)||'',toLabel(m),
+        (m.Text||'').replace(/\r?\n/g,' '),(m.Hint||'').replace(/\r?\n/g,' '),
+        num(m.Importance),num(m.Salience),num(m.Strength),Number(m.RecallCount||0)].map(q).join(','));
+    }));
+    download('全部猫崽_记忆_'+s+'.csv', lines.join('\r\n'),'text/csv',true);
+  } else {
+    const L=['# Noisy Pup 全部对话记录',''];
+    PUPS.forEach(p=>{ L.push('','=== '+p.name+'（'+p.key+'）===',''); L.push(toTXT(p).split('\r\n').slice(3).join('\r\n')); });
+    download('全部猫崽_对话_'+s+'.txt', L.join('\r\n'));
+  }
+  toast('已导出全部（'+kind.toUpperCase()+'）');
+}
+
+/* ---------- 极简 ZIP（store 模式，无压缩） ---------- */
+const CRC_TABLE = (()=>{ const t=new Uint32Array(256);
+  for(let i=0;i<256;i++){ let c=i; for(let k=0;k<8;k++) c = (c&1)? (0xEDB88320 ^ (c>>>1)) : (c>>>1); t[i]=c>>>0; }
+  return t; })();
+function crc32(u8){ let c=0xFFFFFFFF; for(let i=0;i<u8.length;i++) c = CRC_TABLE[(c^u8[i])&0xFF] ^ (c>>>8); return (c^0xFFFFFFFF)>>>0; }
+function buildZip(files){
+  const enc = new TextEncoder();
+  const parts=[], central=[]; let offset=0;
+  const now = new Date();
+  const dosTime = ((now.getHours()<<11) | (now.getMinutes()<<5) | (now.getSeconds()>>1)) & 0xFFFF;
+  const dosDate = (((now.getFullYear()-1980)<<9) | ((now.getMonth()+1)<<5) | now.getDate()) & 0xFFFF;
+  const u16=v=>[v&255,(v>>8)&255], u32=v=>[v&255,(v>>8)&255,(v>>16)&255,(v>>24)&255];
+  for(const f of files){
+    const name = enc.encode(f.name);
+    const data = enc.encode(f.text);
+    const crc = crc32(data);
+    const lh = [].concat([0x50,0x4b,0x03,0x04], u16(20), u16(0x0800), u16(0), u16(dosTime), u16(dosDate),
+      u32(crc), u32(data.length), u32(data.length), u16(name.length), u16(0));
+    parts.push(new Uint8Array(lh), name, data);
+    central.push({name, crc, size:data.length, offset});
+    offset += lh.length + name.length + data.length;
+  }
+  const cdStart = offset; let cdLen = 0;
+  const cds=[];
+  for(const c of central){
+    const ch = [].concat([0x50,0x4b,0x01,0x02], u16(20), u16(20), u16(0x0800), u16(0), u16(dosTime), u16(dosDate),
+      u32(c.crc), u32(c.size), u32(c.size), u16(c.name.length), u16(0), u16(0), u16(0), u16(0), u32(0), u32(c.offset));
+    cds.push(new Uint8Array(ch), c.name);
+    cdLen += ch.length + c.name.length;
+  }
+  const eocd = new Uint8Array([].concat([0x50,0x4b,0x05,0x06], u16(0), u16(0), u16(files.length), u16(files.length),
+    u32(cdLen), u32(cdStart), u16(0)));
+  return new Blob([...parts, ...cds, eocd], {type:'application/zip'});
+}
+function exportZip(){
+  if(!PUPS.length) return;
+  const files=[];
+  const idx=['# Noisy Pup 记忆归档','','> '+new Date().toLocaleString('zh-CN')+' · '+PUPS.length+' 只猫崽 · '+PUPS.reduce((a,b)=>a+b.mem.length,0)+' 条长期记忆',''];
+  PUPS.forEach(p=>{
+    const b = p.name.replace(/[\\/:*?"<>|]/g,'_');
+    files.push({name:b+'/'+b+'_记忆.md', text:toMD(p)});
+    files.push({name:b+'/'+b+'_记忆.csv', text:'\uFEFF'+toCSV(p.mem.slice().sort((x,y)=>Number(x.AgeSeconds)-Number(y.AgeSeconds)),p.name,p.key)});
+    files.push({name:b+'/'+b+'_对话.txt', text:'\uFEFF'+toTXT(p)});
+    const o={}; o[p.key]=p.raw;
+    files.push({name:b+'/'+b+'_原始.json', text:JSON.stringify(o,null,2)});
+    idx.push('## '+p.name+'（'+p.key+'）','- 物种：'+p.speciesZh+'　情绪：'+(p.emotion||'—')+'　记忆：'+p.mem.length+' 条　印象：'+p.imps.length+' 个');
+    idx.push('- 最近一句：'+(p.lines[p.lines.length-1]||'—'),'');
+  });
+  files.unshift({name:'00_索引.md', text:idx.join('\n')});
+  const blob = buildZip(files);
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download='NoisyPup_记忆归档_'+stamp()+'.zip';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(a.href),8000);
+  toast('已打包 '+files.length+' 个文件（'+PUPS.length+' 只猫崽）');
+}
+
+/* ============================================================ 载入 */
+let toastTimer=null;
+function toast(msg){
+  const t=$('#toast'); t.textContent=msg; t.classList.add('on');
+  clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.classList.remove('on'),2400);
+}
+/* ---------- 数据来源：记住文件 + 自动刷新 ---------- */
+const SRC = {
+  mode:'none',           // server | handle | pending | snapshot | sample | none
+  name:'', path:'',
+  handle:null, pendingHandle:null,
+  lastModified:0, size:0,
+  timer:null, sse:null,
+  auto:true, interval:2,
+  lastSync:0, error:'', busy:false,
+  serverOK:false, serverInfo:null
+};
+function loadSettings(){
+  try{
+    const a = localStorage.getItem('noisypup.auto');
+    if(a!==null) SRC.auto = a==='1';
+    const i = parseInt(localStorage.getItem('noisypup.interval')||'2',10);
+    if(i>0) SRC.interval = i;
+  }catch(e){}
+}
+function saveSettings(){
+  try{
+    localStorage.setItem('noisypup.auto', SRC.auto?'1':'0');
+    localStorage.setItem('noisypup.interval', String(SRC.interval));
+  }catch(e){}
+}
+
+/* 浏览器只允许用「文件句柄」记住路径，句柄存在 IndexedDB 里 */
+function idbOpen(){
+  return new Promise((res,rej)=>{
+    let r; try{ r = indexedDB.open('noisypup-src',1); }catch(e){ return rej(e); }
+    r.onupgradeneeded = ()=>{ try{ if(!r.result.objectStoreNames.contains('kv')) r.result.createObjectStore('kv'); }catch(e){} };
+    r.onsuccess = ()=> res(r.result);
+    r.onerror = ()=> rej(r.error);
+  });
+}
+function idbGet(k){
+  return idbOpen().then(db=> new Promise((res,rej)=>{
+    const q = db.transaction('kv','readonly').objectStore('kv').get(k);
+    q.onsuccess=()=>res(q.result); q.onerror=()=>rej(q.error);
+  })).catch(()=>null);
+}
+function idbSet(k,v){
+  return idbOpen().then(db=> new Promise((res,rej)=>{
+    const tx = db.transaction('kv','readwrite');
+    tx.objectStore('kv').put(v,k);
+    tx.oncomplete=()=>res(true); tx.onerror=()=>rej(tx.error);
+  })).catch(()=>false);
+}
+function idbDel(k){
+  return idbOpen().then(db=> new Promise((res)=>{
+    const tx = db.transaction('kv','readwrite');
+    tx.objectStore('kv').delete(k);
+    tx.oncomplete=()=>res(true); tx.onerror=()=>res(false);
+  })).catch(()=>false);
+}
+
+function fmtClock(ts){
+  if(!ts) return '—';
+  const d = new Date(ts);
+  const today = new Date();
+  const time = pad(d.getHours())+':'+pad(d.getMinutes())+':'+pad(d.getSeconds());
+  return d.toDateString()===today.toDateString() ? time : (pad(d.getMonth()+1)+'-'+pad(d.getDate())+' '+time);
+}
+function syncAgo(){
+  if(!SRC.lastSync) return '未同步';
+  const s = Math.round((Date.now()-SRC.lastSync)/1000);
+  if(s < 3) return '刚刚同步';
+  if(s < 60) return s+' 秒前同步';
+  return Math.floor(s/60)+' 分前同步';
+}
+function isWatching(){
+  if(SRC.error) return false;
+  return SRC.mode==='server' || (SRC.mode==='handle' && SRC.auto);
+}
+
+/* 状态条 + 面板 */
+function renderSource(){
+  const chip=$('#srcChip'), txt=$('#srcTxt'), sync=$('#srcSync');
+  const pupsN = PUPS.length, memN = PUPS.reduce((a,b)=>a+b.mem.length,0);
+  chip.classList.toggle('live', isWatching());
+  chip.classList.toggle('warn', SRC.mode==='pending' || SRC.mode==='snapshot' || SRC.mode==='sample');
+  chip.classList.toggle('err', !!SRC.error);
+  txt.textContent = SRC.name || '未载入';
+  chip.title = (SRC.path || SRC.name || '未载入') + '　点击查看刷新设置';
+  let s = '· 手动';
+  if(SRC.error) s = '· 读取异常';
+  else if(SRC.mode==='server') s = SRC.auto ? '· 实时' : '· 已暂停';
+  else if(SRC.mode==='handle') s = SRC.auto ? ('· 每 '+SRC.interval+' 秒') : '· 已暂停';
+  else if(SRC.mode==='pending') s = '· 待恢复';
+  else if(SRC.mode==='sample') s = '';
+  sync.textContent = s;
+
+  const modeTxt = {server:'本地监视服务（推送）', handle:'已绑定文件（轮询）', pending:'已记住文件，待授权',
+                   snapshot:'一次性快照', sample:'内置示例', none:'未载入'}[SRC.mode] || '—';
+  const set=(id,v)=>{ const el=$(id); if(el) el.textContent=v; };
+  set('#spMode', modeTxt);
+  set('#spFile', SRC.name || '—');
+  set('#spCount', pupsN ? (pupsN+' 只猫崽 / '+memN+' 条记忆') : '—');
+  const pth=$('#spPath');
+  if(pth){
+    pth.textContent = SRC.path || '浏览器不暴露完整路径';
+    pth.style.cursor = SRC.path ? 'copy' : 'default';
+    pth.onclick = ()=>{ if(SRC.path && navigator.clipboard) navigator.clipboard.writeText(SRC.path).then(()=>toast('路径已复制'), ()=>{}); };
+  }
+  set('#spMtime', SRC.lastModified ? fmtClock(SRC.lastModified) : '—');
+  set('#spSync', SRC.lastSync ? fmtClock(SRC.lastSync)+'（'+syncAgo()+'）' : '—');
+  const au=$('#spAuto'), iv=$('#spInterval');
+  if(au) au.checked = SRC.auto;
+  if(iv) iv.value = String(SRC.interval);
+  const bind=$('#spBind');
+  if(bind) bind.textContent = (SRC.mode==='pending' && SRC.pendingHandle) ? '恢复监视' : '重新绑定';
+  const tip=$('#spTip');
+  if(tip) tip.innerHTML = tipText();
+
+  const note=$('#sideNote');
+  if(note){
+    const stats = pupsN
+      ? '共 '+pupsN+' 只猫崽、'+memN+' 条长期记忆、'+PUPS.reduce((a,b)=>a+b.imps.length,0)+' 条印象。'
+      : '拖一个 <span class="mono">memories.json</span> 到窗口任意位置即可解析。';
+    note.innerHTML = (isWatching()
+      ? '正在监视 <span class="mono">'+esc(SRC.name)+'</span>，文件更新会自动刷新。'
+      : (SRC.mode==='snapshot'||SRC.mode==='sample' ? '当前是一次性快照，不会自动更新。' : '')) + stats;
+  }
+}
+function tipText(){
+  const P=[];
+  if(SRC.error) P.push('<div class="sp-err">最近一次错误：'+esc(SRC.error)+'</div>');
+  if(SRC.mode==='server'){
+    P.push('由本地监视服务提供，文件一变立即推送，不靠轮询。');
+    P.push('启动方式：<code>python memory_extract.py --serve</code>');
+  } else if(SRC.mode==='handle'){
+    P.push('这个文件已经被浏览器记下（IndexedDB 里存的是文件句柄），下次打开本页会自动接上。');
+    P.push('完整路径由浏览器保管，页面读不到，只能拿到文件名。');
+  } else if(SRC.mode==='pending'){
+    P.push('上次绑定的文件还记得，但浏览器需要你点一下「恢复监视」才允许读取。');
+  } else if(SRC.mode==='snapshot' || SRC.mode==='sample'){
+    P.push('这是一次性快照，不会自动更新。点「重新绑定」把文件记住，之后就能自动刷新。');
+  }
+  if(SRC.mode!=='server'){
+    P.push('想要真正"跟着文件变"：运行 <code>python memory_extract.py --serve</code>，它会打开同一个页面并实时推送。');
+  }
+  if(!window.showOpenFilePicker) P.push('当前浏览器不支持文件句柄，只能每次手动选文件；建议用 Chrome / Edge。');
+  return P.join('<br>');
+}
+
+/* 解析并渲染；keep=true 时保留当前选中的猫与标签页 */
+function applyText(text, name, opts){
+  opts = opts || {};
+  const prevSEL = SEL, prevTAB = TAB;
+  const before = PUPS.reduce((a,b)=>a+b.mem.length,0);
+  try{
+    normalize(parseMemories(text));
+    if(!PUPS.length) throw new Error('文件里没有任何猫崽记录');
+  }catch(e){
+    SRC.error = '解析失败：' + e.message;
+    renderSource();
+    if(opts.auto) toast('文件可能正在写入，已保留上一份数据');
+    else if(!opts.quiet) alert('解析失败：' + e.message);
+    return false;
+  }
+  if(opts.keep){
+    SEL = (prevSEL && PUPS.some(p=>p.key===prevSEL)) ? prevSEL : (PUPS[0]?PUPS[0].key:null);
+    TAB = prevTAB || 'overview';
+  } else {
+    SEL = PUPS[0] ? PUPS[0].key : null;
+    TAB = 'overview'; F.q=''; F.cat='all'; F.tag='all'; F.kinds=new Set([0,1,2,3]);
+  }
+  if(name) SRC.name = name;
+  SRC.lastSync = Date.now(); SRC.error = '';
+  renderSource(); renderSidebar(); renderMain();
+  if(opts.cache !== false){
+    try{ localStorage.setItem('noisypup.mem', text.slice(0,4.5e6)); localStorage.setItem('noisypup.name', SRC.name||''); }catch(e){}
+  }
+  const after = PUPS.reduce((a,b)=>a+b.mem.length,0);
+  if(opts.auto){
+    const d = after - before;
+    toast('已自动更新' + (d>0 ? ' · 新增 '+d+' 条记忆' : (d<0 ? ' · 少了 '+(-d)+' 条' : ' · 内容有变化')));
+  } else if(!opts.quiet){
+    toast('解析完成：'+PUPS.length+' 只猫崽，'+after+' 条记忆');
+  }
+  return true;
+}
+function loadSample(quiet){
+  SRC.mode='sample'; SRC.name='内置示例'; SRC.path='';
+  SRC.handle=null; SRC.pendingHandle=null; SRC.lastModified=0;
+  stopTimer(); closeSSE();
+  applyText(JSON.stringify(SAMPLE), '内置示例', {quiet:!!quiet, keep:false, cache:false});
+}
+
+/* ---------- 模式一：本地监视服务（实时推送） ---------- */
+async function probeServer(){
+  try{
+    const ctl = new AbortController();
+    const t = setTimeout(()=>ctl.abort(), 1800);
+    const r = await fetch('api/state', {cache:'no-store', signal:ctl.signal});
+    clearTimeout(t);
+    if(!r.ok) return null;
+    const j = await r.json();
+    return (j && j.ok) ? j : null;
+  }catch(e){ return null; }
+}
+async function fetchServerText(){
+  const r = await fetch('api/data?t='+Date.now(), {cache:'no-store'});
+  if(r.status === 503) throw new Error('文件正在被写入');
+  if(!r.ok) throw new Error('HTTP '+r.status);
+  return await r.text();
+}
+function connectSSE(){
+  closeSSE();
+  try{
+    let first = true;   // 服务端连上就先推一次当前状态，这一次不用再拉一遍
+    const es = new EventSource('api/events');
+    es.onmessage = ev=>{
+      let d=null; try{ d = JSON.parse(ev.data); }catch(e){}
+      if(first){ first = false; return; }
+      if(d && d.type==='update'){ refreshNow('auto'); fetchJourney(); }
+    };
+    SRC.sse = es;
+  }catch(e){}
+}
+function closeSSE(){ if(SRC.sse){ try{ SRC.sse.close(); }catch(e){} SRC.sse=null; } }
+async function connectServer(st){
+  SRC.serverOK = true; SRC.serverInfo = st || {};
+  SRC.mode='server'; SRC.name = (st&&st.name) || 'memories.json'; SRC.path = (st&&st.path) || '';
+  SRC.lastModified = (st&&st.mtime) ? st.mtime*1000 : 0;
+  SRC.handle=null; SRC.pendingHandle=null;
+  stopTimer();
+  try{
+    applyText(await fetchServerText(), SRC.name, {quiet:true, keep:true, auto:false});
+  }catch(e){ SRC.error='读取失败：'+e.message; }
+  if(SRC.auto) connectSSE();
+  renderSource();
+  toast('已连接本地监视服务 · 文件变化会立即刷新');
+}
+
+/* ---------- 模式二：记住文件（File System Access 句柄 + 轮询） ---------- */
+async function bindFile(){
+  if(window.showOpenFilePicker){
+    try{
+      const [h] = await window.showOpenFilePicker({
+        id:'noisypup-memories', multiple:false,
+        types:[{description:'memories.json', accept:{'application/json':['.json']}}]
+      });
+      await adoptHandle(h, {interactive:true});
+      return;
+    }catch(e){
+      if(e && e.name==='AbortError') return;         // 用户自己取消
+      toast('无法记住路径（'+(e.name||'不支持')+'），改为手动选择一次');
+    }
+  }
+  $('#fileInput').click();
+}
+async function adoptHandle(h, opts){
+  opts = opts || {};
+  try{
+    let perm = 'prompt';
+    try{ perm = await h.queryPermission({mode:'read'}); }catch(e){ perm='prompt'; }
+    if(perm !== 'granted'){
+      try{ perm = await h.requestPermission({mode:'read'}); }catch(e){ perm='denied'; }
+    }
+    if(perm !== 'granted') throw new Error('没有获得读取权限');
+
+    const f = await h.getFile();
+    const text = await f.text();
+
+    closeSSE();
+    SRC.mode='handle'; SRC.handle=h; SRC.pendingHandle=null; SRC.path='';
+    SRC.name = f.name || 'memories.json';
+    SRC.lastModified = f.lastModified || Date.now(); SRC.size = f.size;
+    if(!applyText(text, SRC.name, {quiet:true, keep:true, auto:false})) throw new Error('内容不是有效的记忆文件');
+    await idbSet('handle', h);
+    startTimer(); renderSource();
+    if(opts.interactive) toast('已记住 '+SRC.name+' · 文件一变就自动刷新');
+    return true;
+  }catch(e){
+    SRC.error = (e && e.name==='NotFoundError') ? '文件已被移动或删除' : (e.message || String(e));
+    if(SRC.mode!=='handle') SRC.mode = 'none';
+    renderSource();
+    if(opts.interactive) alert('绑定失败：'+(e.message||e.name));
+    return false;
+  }
+}
+async function restoreHandle(){
+  const h = await idbGet('handle');
+  if(!h || typeof h.getFile !== 'function') return false;
+  let perm='prompt';
+  try{ perm = await h.queryPermission({mode:'read'}); }catch(e){ perm='prompt'; }
+  if(perm==='granted') return await adoptHandle(h, {interactive:false});
+  SRC.pendingHandle = h; SRC.mode='pending';
+  SRC.name = h.name || 'memories.json';
+  renderSource();
+  return false;
+}
+function stopTimer(){ if(SRC.timer){ clearInterval(SRC.timer); SRC.timer=null; } }
+function startTimer(){
+  stopTimer();
+  if(SRC.mode!=='handle' || !SRC.auto) return;
+  SRC.timer = setInterval(pollHandle, Math.max(1,SRC.interval)*1000);
+}
+async function pollHandle(force){
+  if(!SRC.handle || SRC.busy) return;
+  SRC.busy = true;
+  try{
+    const f = await SRC.handle.getFile();
+    if(force || f.lastModified !== SRC.lastModified || f.size !== SRC.size){
+      const text = await f.text();
+      SRC.lastModified = f.lastModified || Date.now(); SRC.size = f.size;
+      applyText(text, f.name || SRC.name, {quiet:true, keep:true, auto:!force});
+    } else {
+      SRC.lastSync = Date.now(); SRC.error='';
+    }
+  }catch(e){
+    SRC.error = (e && e.name==='NotFoundError') ? '文件已被移动或删除' : ('读取失败：'+(e.name||e.message));
+  }
+  SRC.busy = false;
+  renderSource();
+}
+
+/* ---------- 统一刷新入口 ---------- */
+async function refreshNow(kind){
+  if(SRC.mode==='server'){
+    try{
+      applyText(await fetchServerText(), SRC.name, {quiet:true, keep:true, auto:kind==='auto'});
+    }catch(e){
+      SRC.error = '读取失败：'+e.message;
+      renderSource();
+      if(kind==='manual') toast('读取失败：'+e.message);
+    }
+  } else if(SRC.mode==='handle'){
+    await pollHandle(kind==='manual');
+  } else if(SRC.mode==='pending'){
+    if(!await restoreHandle()) toast('请在面板里点「恢复监视」授权读取');
+  } else {
+    if(SRC.serverOK){ await connectServer(SRC.serverInfo||{}); return; }
+    if(kind==='manual') bindFile();
+  }
+}
+
+/* 普通方式打开的文件：只能当快照 */
+async function readSnapshot(file){
+  try{
+    const text = await file.text();
+    closeSSE(); stopTimer(); idbDel('handle');
+    SRC.mode='snapshot'; SRC.handle=null; SRC.pendingHandle=null; SRC.path='';
+    SRC.lastModified = file.lastModified || 0; SRC.size = file.size;
+    if(applyText(text, file.name, {keep:false, quiet:false})){
+      renderSource();
+      toast('已载入快照 · 想自动刷新请点「重新绑定」');
+    }
+  }catch(e){ alert('读取文件失败：'+e.message); }
+}
+
+/* ============================================================ 事件 */
+$('#btnOpen').onclick = ()=> bindFile();
+$('#fileInput').onchange = e=>{ const f=e.target.files[0]; e.target.value=''; if(f) readSnapshot(f); };
+$('#btnZip').onclick = exportZip;
+$('#pupFilter').oninput = renderSidebar;
+
+/* 来源面板 */
+function openPanel(v){
+  const p=$('#srcPanel'); if(!p) return;
+  p.hidden = !v;
+  $('#srcChip').classList.toggle('open', !!v);
+  $('#srcChip').setAttribute('aria-expanded', v?'true':'false');
+  if(v) renderSource();
+}
+$('#srcChip').onclick = e=>{ e.stopPropagation(); openPanel($('#srcPanel').hidden); };
+document.addEventListener('click', e=>{
+  const w=$('#srcWrap');
+  if(w && !w.contains(e.target)) openPanel(false);
+});
+$('#spRefresh').onclick = ()=> refreshNow('manual');
+$('#spBind').onclick = ()=>{
+  if(SRC.mode==='pending' && SRC.pendingHandle) adoptHandle(SRC.pendingHandle, {interactive:true});
+  else bindFile();
+};
+$('#spUnbind').onclick = async ()=>{
+  await idbDel('handle');
+  closeSSE(); stopTimer();
+  SRC.handle=null; SRC.pendingHandle=null; SRC.path='';
+  SRC.mode = PUPS.length ? 'snapshot' : 'none';
+  SRC.auto = false; saveSettings(); renderSource();
+  toast('已解除绑定，自动刷新关闭');
+};
+$('#spAuto').onchange = e=>{
+  SRC.auto = e.target.checked; saveSettings();
+  if(SRC.mode==='server'){ SRC.auto ? connectSSE() : closeSSE(); }
+  startTimer(); jStartTimer(); renderSource();
+  toast(SRC.auto ? '自动刷新已开启' : '自动刷新已暂停');
+};
+$('#spInterval').onchange = e=>{
+  SRC.interval = parseInt(e.target.value,10) || 2;
+  saveSettings(); startTimer(); jStartTimer(); renderSource();
+  toast('每 '+SRC.interval+' 秒检查一次');
+};
+
+/* ============================================================ 选一个文件夹，全自动 */
+/* 不需要 Python、不需要开服务：文件夹里有什么就读什么，
+   memories.json 取层级最浅的，journey-*.jsonl 取最新的一份。 */
+
+function folderPickEntries(files){
+  return Array.from(files || []).map(f => ({
+    path: (f.webkitRelativePath || f.name || '').replace(/\\/g, '/'),
+    f: f
+  }));
+}
+
+async function readDirHandle(dir, prefix, out, depth){
+  if(depth > 3) return out;
+  try{
+    for await (const [name, h] of dir.entries()){
+      const pth = prefix ? prefix + '/' + name : name;
+      if(h.kind === 'file'){
+        if(/\.jsonl?$/i.test(name)){
+          try{ out.push({path: pth, f: await h.getFile()}); }catch(e){}
+        }
+      }else if(depth < 3 && !/^(text|PupText|newest|bin|obj|Assets|sound|music|illustrations)$/i.test(name)){
+        await readDirHandle(h, pth, out, depth+1);
+      }
+    }
+  }catch(e){}
+  return out;
+}
+
+async function loadFolderEntries(entries){
+  entries = entries || [];
+  const mems = [], jrn = [];
+  entries.forEach(e=>{
+    const base = String(e.path || '').split('/').pop();
+    if(/^memories\.json$/i.test(base)) mems.push(e);
+    else if(/^journey-.*\.jsonl$/i.test(base)) jrn.push(e);
+  });
+
+  if(!mems.length && !jrn.length){
+    toast('这个文件夹里没找到 memories.json 或 logs/journey-*.jsonl');
+    return;
+  }
+
+  const loaded = [];
+
+  if(mems.length){
+    // 层级最浅的那个才是模组根目录里的记忆文件
+    mems.sort((a,b)=>{
+      const da = a.path.split('/').length, db = b.path.split('/').length;
+      return da - db || ((b.f.lastModified||0) - (a.f.lastModified||0));
+    });
+    const m = mems[0];
+    try{
+      const text = await m.f.text();
+      closeSSE(); stopTimer(); idbDel('handle');
+      SRC.mode='snapshot'; SRC.handle=null; SRC.pendingHandle=null; SRC.path = m.path;
+      SRC.lastModified = m.f.lastModified || 0; SRC.size = m.f.size;
+      if(applyText(text, m.f.name, {keep:false, quiet:true})){ renderSource(); loaded.push('记忆'); }
+    }catch(e){ alert('读 memories.json 失败：' + e.message); }
+  }
+
+  if(jrn.length){
+    // 按修改时间取最新；时间一样时才偏向 logs/ 里那份
+    jrn.sort((a,b)=>{
+      const la = /\/logs\//i.test(a.path) ? 0 : 1;
+      const lb = /\/logs\//i.test(b.path) ? 0 : 1;
+      return ((b.f.lastModified||0) - (a.f.lastModified||0)) || (la - lb);
+    });
+    const j = jrn[0];
+    try{
+      const text = await j.f.text();
+      JSRC.mode='snapshot'; JSRC.name = j.f.name; JSRC.path = j.path;
+      JSRC.handle=null; JSRC.pendingHandle=null; JSRC.error='';
+      JSRC.lastModified = j.f.lastModified || 0; JSRC.size = j.f.size;
+      parseJourney(text, j.f.name, j.path);
+      if(typeof renderJourneySource==='function') renderJourneySource();
+      loaded.push('日志 ' + j.f.name);
+    }catch(e){ alert('读旅程日志失败：' + e.message); }
+  }
+
+  if(loaded.length) toast('已载入：' + loaded.join(' + ') + '（快照，想自动刷新用 --serve 或重新载入）');
+}
+
+$('#btnFolder').onclick = ()=> $('#folderInput').click();
+$('#folderInput').onchange = e=>{
+  const files = Array.from(e.target.files || []);
+  e.target.value = '';
+  if(files.length) loadFolderEntries(folderPickEntries(files));
+};
+
+let dragDepth=0;
+window.addEventListener('dragenter', e=>{ e.preventDefault(); dragDepth++; if(e.dataTransfer.types.includes('Files')) $('#drop').classList.add('on'); });
+window.addEventListener('dragover', e=> e.preventDefault());
+window.addEventListener('dragleave', e=>{ dragDepth--; if(dragDepth<=0){ dragDepth=0; $('#drop').classList.remove('on'); } });
+window.addEventListener('drop', async e=>{
+  e.preventDefault(); dragDepth=0; $('#drop').classList.remove('on');
+  // 拖进来的文件也能拿到"句柄"，因此同样可以记住路径、自动跟随更新
+  const items = e.dataTransfer && e.dataTransfer.items;
+  if(items && items[0] && typeof items[0].getAsFileSystemHandle === 'function'){
+    try{
+      const h = await items[0].getAsFileSystemHandle();
+      if(h && h.kind === 'file'){
+        // .jsonl 是旅程日志，.json 是记忆文件
+        if(/\.jsonl$/i.test(h.name || '')){ await adoptJourneyHandle(h, {interactive:true}); return; }
+        await adoptHandle(h, {interactive:true}); return;
+      }
+      if(h && h.kind === 'directory'){
+        // 拖整个模组文件夹：自己找 memories.json 和最新的 journey-*.jsonl
+        const out = [];
+        await readDirHandle(h, h.name || '', out, 0);
+        if(out.length){ await loadFolderEntries(out); return; }
+        toast('这个文件夹里没找到记忆或日志');
+        return;
+      }
+    }catch(err){}
+  }
+  const f = e.dataTransfer.files && e.dataTransfer.files[0];
+  if(f){
+    if(/\.jsonl$/i.test(f.name || '')){ readJourneySnapshot(f); return; }
+    readSnapshot(f);
+  }
+});
+window.addEventListener('paste', e=>{
+  const t=(e.clipboardData||{}).getData && e.clipboardData.getData('text');
+  if(t && t.trim().startsWith('{')){
+    closeSSE(); stopTimer();
+    SRC.mode='snapshot'; SRC.handle=null; SRC.path='';
+    applyText(t, '粘贴的 JSON', {keep:false, quiet:false});
+  }
+});
+document.addEventListener('keydown', e=>{
+  if(e.key==='/' && document.activeElement.tagName!=='INPUT'){ e.preventDefault(); const f=$('#fq'); if(f) f.focus(); }
+  if((e.key==='ArrowDown'||e.key==='ArrowUp') && document.activeElement.tagName!=='INPUT'){
+    const i=PUPS.findIndex(p=>p.key===SEL), n=i+(e.key==='ArrowDown'?1:-1);
+    if(n>=0 && n<PUPS.length){ e.preventDefault(); SEL=PUPS[n].key; renderSidebar(); renderMain(); }
+  }
+});
+
+/* 导出全部的下拉 */
+const btnAll = document.createElement('button');
+btnAll.className='btn'; btnAll.textContent='导出全部';
+btnAll.onclick = ()=>{
+  const menu = document.createElement('div');
+  menu.style.cssText='position:fixed;z-index:95;background:#fff;border:1px solid var(--line);border-radius:11px;box-shadow:0 18px 50px -22px rgba(0,0,0,.45);padding:6px;min-width:150px';
+  const r=btnAll.getBoundingClientRect();
+  menu.style.top=(r.bottom+6)+'px'; menu.style.left=(r.right-150)+'px';
+  ['md','csv','json','txt'].forEach(k=>{
+    const b=document.createElement('button');
+    b.className='btn ghost'; b.style.cssText='width:100%;justify-content:flex-start';
+    b.textContent={md:'全部 Markdown',csv:'全部 CSV',json:'全部 JSON',txt:'全部 对话 TXT'}[k];
+    b.onclick=()=>{ exportAll(k); menu.remove(); };
+    menu.appendChild(b);
+  });
+  document.body.appendChild(menu);
+  setTimeout(()=>document.addEventListener('click',()=>menu.remove(),{once:true}),0);
+};
+$('#btnOpen').after(btnAll);
+
+/* 旅程日志：文件追踪（复用 IndexedDB 句柄 + 轮询，与记忆文件同一套机制） */
+const JSRC = { mode:'none', name:'', handle:null, pendingHandle:null,
+               lastModified:0, size:0, timer:null, busy:false, error:'' };
+
+function jStartTimer(){
+  jStopTimer();
+  if(JSRC.mode!=='handle' || !SRC.auto) return;
+  JSRC.timer = setInterval(jPollHandle, Math.max(1,SRC.interval)*1000);
+}
+function jStopTimer(){ if(JSRC.timer){ clearInterval(JSRC.timer); JSRC.timer=null; } }
+
+async function adoptJourneyHandle(h, opts){
+  opts = opts || {};
+  try{
+    let perm = 'prompt';
+    try{ perm = await h.queryPermission({mode:'read'}); }catch(e){ perm='prompt'; }
+    if(perm !== 'granted'){
+      try{ perm = await h.requestPermission({mode:'read'}); }catch(e){ perm='denied'; }
+    }
+    if(perm !== 'granted') throw new Error('没有获得读取权限');
+
+    const f = await h.getFile();
+    const text = await f.text();
+
+    JSRC.mode='handle'; JSRC.handle=h; JSRC.pendingHandle=null;
+    JSRC.name = f.name || 'journey.jsonl';
+    JSRC.lastModified = f.lastModified || Date.now(); JSRC.size = f.size;
+    parseJourney(text, JSRC.name);
+    await idbSet('journey-handle', h);
+    jStartTimer();
+    if(opts.interactive) toast('已记住 '+JSRC.name+' · 文件一变就自动刷新');
+    return true;
+  }catch(e){
+    JSRC.error = (e && e.name==='NotFoundError') ? '文件已被移动或删除' : (e.message || String(e));
+    if(JSRC.mode!=='handle') JSRC.mode = 'none';
+    if(opts.interactive) alert('绑定旅程日志失败：'+(e.message||e.name));
+    return false;
+  }
+}
+
+async function restoreJourneyHandle(){
+  const h = await idbGet('journey-handle');
+  if(!h || typeof h.getFile !== 'function') return false;
+  let perm='prompt';
+  try{ perm = await h.queryPermission({mode:'read'}); }catch(e){ perm='prompt'; }
+  if(perm==='granted') return await adoptJourneyHandle(h, {interactive:false});
+  JSRC.pendingHandle = h; JSRC.mode='pending';
+  JSRC.name = h.name || 'journey.jsonl';
+  return false;
+}
+
+async function jPollHandle(force){
+  if(!JSRC.handle || JSRC.busy) return;
+  JSRC.busy = true;
+  try{
+    const f = await JSRC.handle.getFile();
+    if(force || f.lastModified !== JSRC.lastModified || f.size !== JSRC.size){
+      const text = await f.text();
+      JSRC.lastModified = f.lastModified || Date.now(); JSRC.size = f.size;
+      parseJourney(text, f.name || JSRC.name);
+    }
+  }catch(e){
+    JSRC.error = (e && e.name==='NotFoundError') ? '文件已被移动或删除' : ('读取失败：'+(e.name||e.message));
+  }
+  JSRC.busy = false;
+}
+
+async function bindJourneyFile(){
+  if(window.showOpenFilePicker){
+    try{
+      const [h] = await window.showOpenFilePicker({
+        id:'noisypup-journey', multiple:false,
+        types:[{description:'journey-*.jsonl', accept:{'application/json':['.jsonl']}}]
+      });
+      await adoptJourneyHandle(h, {interactive:true});
+      return;
+    }catch(e){
+      if(e && e.name==='AbortError') return;
+      toast('无法记住路径（'+(e.name||'不支持')+'），改为手动选择一次');
+    }
+  }
+  $('#journeyInput').click();
+}
+
+function readJourneySnapshot(file){
+  const r = new FileReader();
+  r.onload = ()=>{
+    JSRC.mode='snapshot'; JSRC.name = file.name; JSRC.handle=null; JSRC.pendingHandle=null;
+    parseJourney(String(r.result||''), file.name);
+    toast('旅程日志已载入：'+file.name+'（快照，不会自动刷新）');
+  };
+  r.readAsText(file, 'utf-8');
+}
+
+$('#btnJourney').onclick = ()=> bindJourneyFile();
+$('#journeyInput').onchange = e=>{
+  const f = e.target.files && e.target.files[0];
+  e.target.value='';
+  if(f) readJourneySnapshot(f);
+};
+
+/* 旅程日志来源面板（与记忆文件同一套 UI） */
+function renderJourneySource(){
+  const chip=$('#jChip'), txt=$('#jTxt'), sync=$('#jSync');
+  const mode = JSRC.mode;
+  chip.classList.toggle('live', (mode==='handle' && SRC.auto) || mode==='server');
+  chip.classList.toggle('warn', mode==='pending' || mode==='snapshot');
+  chip.classList.toggle('err', !!JSRC.error);
+  txt.textContent = JSRC.name || '旅程日志';
+  chip.title = (JSRC.path || JSRC.name || '旅程日志') + '　点击查看刷新设置';
+  let s = '· 未载入';
+  if(JSRC.error) s = '· 读取异常';
+  else if(mode==='handle') s = SRC.auto ? ('· 每 '+SRC.interval+' 秒') : '· 已暂停';
+  else if(mode==='snapshot') s = '· 快照';
+  else if(mode==='pending') s = '· 待恢复';
+  else if(mode==='server') s = '· 自动';
+  sync.textContent = s;
+
+  const modeTxt = {handle:'已绑定文件（轮询）', pending:'已记住文件，待授权',
+                   snapshot:'一次性快照', server:'本地服务 · 自动跟随最新一份',
+                   none:'未载入'}[mode] || '—';
+  const set=(id,v)=>{ const el=$(id); if(el) el.textContent=v; };
+  set('#jMode', modeTxt);
+  set('#jFile', JSRC.name || '—');
+  const jf=$('#jFile'); if(jf) jf.title = JSRC.path || JSRC.name || '';
+  set('#jCount', JOURNEY ? JOURNEY.length+' 事件' : '—');
+  set('#jMtime', JSRC.lastModified ? fmtClock(JSRC.lastModified) : '—');
+  const au=$('#jAuto');
+  if(au) au.checked = SRC.auto;
+  const bind=$('#jBind');
+  if(bind) bind.textContent = (mode==='pending' && JSRC.pendingHandle) ? '恢复监视' : '绑定文件';
+  const tip=$('#jTip');
+  if(tip){
+    const P=[];
+    if(JSRC.error) P.push('<div class="sp-err">最近一次错误：'+esc(JSRC.error)+'</div>');
+    if(mode==='handle') P.push('这个文件已经被浏览器记下，文件一变就自动重新解析。');
+    else if(mode==='pending') P.push('上次绑定的日志还记得，点「恢复监视」授权读取。');
+    else if(mode==='snapshot') P.push('当前是快照，点「绑定文件」记住它，之后自动刷新。');
+    else P.push('点「绑定文件」选一份 journey-*.jsonl，或拖它进窗口。');
+    if(!window.showOpenFilePicker) P.push('当前浏览器不支持文件句柄，只能手动选文件；建议用 Chrome / Edge。');
+    tip.innerHTML = P.join('<br>');
+  }
+}
+function openJourneyPanel(v){
+  const p=$('#jPanel'); if(!p) return;
+  p.hidden = !v;
+  $('#jChip').classList.toggle('open', !!v);
+  $('#jChip').setAttribute('aria-expanded', v?'true':'false');
+  if(v) renderJourneySource();
+}
+$('#jChip').onclick = e=>{ e.stopPropagation(); openJourneyPanel($('#jPanel').hidden); };
+document.addEventListener('click', e=>{
+  const w=$('#jWrap');
+  if(w && !w.contains(e.target)) openJourneyPanel(false);
+});
+$('#jRefresh').onclick = ()=>{ if(JSRC.mode==='handle') jPollHandle(true); else bindJourneyFile(); };
+$('#jBind').onclick = ()=>{
+  if(JSRC.mode==='pending' && JSRC.pendingHandle) adoptJourneyHandle(JSRC.pendingHandle, {interactive:true});
+  else bindJourneyFile();
+};
+$('#jUnbind').onclick = async ()=>{
+  await idbDel('journey-handle');
+  jStopTimer();
+  JSRC.handle=null; JSRC.pendingHandle=null; JSRC.mode='none'; JSRC.error='';
+  renderJourneySource();
+  toast('已解除旅程日志绑定');
+};
+$('#jAuto').onchange = e=>{
+  SRC.auto = e.target.checked; saveSettings();
+  startTimer(); jStartTimer(); renderSource(); renderJourneySource();
+  toast(SRC.auto ? '自动刷新已开启' : '自动刷新已暂停');
+};
+
+/* 启动 */
+loadSettings();
+(async function boot(){
+  // 1) 先用上次的快照把界面点亮（秒开），随后再升级为"实时"
+  let cached=null, cachedName='';
+  try{ cached = localStorage.getItem('noisypup.mem'); cachedName = localStorage.getItem('noisypup.name')||''; }catch(e){}
+  if(cached){ SRC.mode='snapshot'; applyText(cached, cachedName || '上次的数据', {quiet:true, keep:false, auto:false}); }
+  else loadSample(true);
+
+  // 2) 优先接本地监视服务（实时推送）；否则恢复记住的文件（轮询）
+  const st = await probeServer();
+  if(st){ await connectServer(st); fetchJourney(); }
+  else {
+    SRC.serverOK = false;
+    const ok = await restoreHandle();
+    if(!ok && SRC.mode!=='pending') renderSource();
+    if(SRC.mode==='pending') setTimeout(()=>toast('上次的文件还记得 · 点右上角状态条里的「恢复监视」'), 900);
+  }
+
+  // 2.5) 旅程日志也恢复记住的句柄（服务模式由 fetchJourney 兜底，这里只管轮询句柄）
+  if(SRC.mode!=='server') await restoreJourneyHandle();
+
+  // 3) 支持 #tab=timeline&p=绿绒 直接定位（也方便做截图核对）
+  try{
+    const h = new URLSearchParams(location.hash.replace(/^#/,''));
+    const pk = h.get('p');
+    if(pk){ const t = PUPS.find(x=>x.key===pk || x.name===pk); if(t) SEL = t.key; }
+    const tb = h.get('tab');
+    if(tb && ['overview','timeline','chat','impressions','journey','jdialogue','raw'].includes(tb)) TAB = tb;
+    const jm = h.get('jm');
+    if(jm === 'dialogue' || jm === 'timeline') JVIEW.mode = jm;
+    const q = h.get('q');
+    if(q){ F.q = q; }
+    if(h.get('cm')) F.chatMode = h.get('cm');
+    if(h.get('src')) openPanel(true);
+    renderSidebar(); renderMain();
+  }catch(e){}
+
+  // 4) 面板打开时，定期刷新"上次同步"这类时间文案
+  setInterval(()=>{ const p=$('#srcPanel'); if(p && !p.hidden) renderSource(); }, 5000);
+})();
+</script>
+</body>
+</html>

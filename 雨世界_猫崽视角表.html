@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>雨世界 · 猫崽的态度（代码名对照）</title>
+<style>
+  :root{
+    --bg:#f7f6f3; --card:#fff; --line:#e7e3dc; --text:#23201c; --muted:#7a736a;
+    --accent:#c2683f; --accent-soft:#fbeee7; --code-bg:#f3f0ea;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+    font-size:14px;line-height:1.7}
+  .wrap{max-width:1180px;margin:0 auto;padding:34px 20px 80px}
+  header h1{font-size:25px;margin:0 0 8px;letter-spacing:.4px}
+  header .sub{color:var(--muted);font-size:13px}
+  header .sub b{color:var(--accent);font-weight:600}
+  .quote{margin:18px 0 0;padding:14px 18px;border-left:3px solid var(--accent);
+    background:var(--accent-soft);border-radius:0 10px 10px 0;color:#6b4a3a;font-size:13.5px}
+  .panel{background:var(--card);border:1px solid var(--line);border-radius:12px;
+    padding:15px 18px;margin:20px 0 18px;box-shadow:0 1px 2px rgba(35,32,28,.04)}
+  .search-row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  input[type=search]{flex:1;min-width:220px;padding:9px 12px;border:1px solid var(--line);
+    border-radius:8px;font-size:14px;outline:none;background:#fdfcfa;color:var(--text)}
+  input[type=search]:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+  .count{color:var(--muted);font-size:12px;white-space:nowrap}
+  .filters{display:flex;gap:16px;flex-wrap:wrap;margin-top:12px}
+  .fgroup{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+  .fgroup .label{font-size:12px;color:var(--muted);margin-right:2px}
+  .chip{border:1px solid var(--line);background:#fff;color:var(--muted);
+    padding:4px 11px;border-radius:999px;font-size:12.5px;cursor:pointer;transition:all .15s ease}
+  .chip:hover{border-color:#d6cec4;color:var(--text)}
+  .chip.active{background:var(--accent);border-color:var(--accent);color:#fff}
+  .chip .n{opacity:.62;font-size:11px;margin-left:4px}
+  table{width:100%;border-collapse:collapse;background:var(--card);
+    border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  thead th{position:sticky;top:0;z-index:2;background:#f1eee8;text-align:left;
+    font-size:12.5px;font-weight:600;color:#4a443c;padding:10px 12px;
+    border-bottom:1px solid var(--line);white-space:nowrap}
+  tbody td{padding:9px 12px;border-bottom:1px solid #f2efea;vertical-align:top}
+  tbody tr:last-child td{border-bottom:none}
+  tbody tr:hover{background:#fcfbf9}
+  code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;background:var(--code-bg);
+    padding:1px 6px;border-radius:5px;font-size:12.5px;color:#a1552f;white-space:nowrap}
+  td.zh{font-weight:600;white-space:nowrap}
+  td.en{color:#5b554d;font-size:13px}
+  td.view{color:#3f3a34}
+  .tag{display:inline-block;padding:1px 9px;border-radius:999px;font-size:12px;
+    font-weight:600;line-height:1.7;white-space:nowrap;border:1px solid transparent}
+  .tag + .tag{margin-left:4px}
+  .stars{color:#d98b3a;font-size:12.5px;letter-spacing:1px;white-space:nowrap}
+  .stars .off{color:#e3ddd4}
+  .empty{padding:40px;text-align:center;color:var(--muted)}
+  footer{margin-top:24px;color:var(--muted);font-size:12.5px;line-height:1.9}
+  @media print{body{background:#fff}.panel,input,.filters{display:none}thead th{position:static}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>雨世界 · 猫崽的态度</h1>
+    <div class="sub">代码内 ID / 中文名 / 英文名 / <b>态度 · 强度</b> / 猫崽的看法 · 全 156 条</div>
+    <div class="quote">「我不知道它叫什么。我只知道看见它的时候，我是想跑、想吃、想抱，还是根本不想理它。」<br>——一只跟着大猫赶路的小猫崽</div>
+  </header>
+
+  <div class="panel">
+    <div class="search-row">
+      <input type="search" id="q" placeholder="搜中文名 / 英文名 / 代码名 / 看法，例如：蜥蜴、SporePlant、想吃">
+      <span class="count" id="count"></span>
+    </div>
+    <div class="filters">
+      <div class="fgroup" id="fdlc">
+        <span class="label">版本</span>
+        <button class="chip active" data-v="all">全部</button>
+        <button class="chip" data-v="vanilla">原版</button>
+        <button class="chip" data-v="msc">倾盆大雨</button>
+        <button class="chip" data-v="tw">观望者</button>
+      </div>
+      <div class="fgroup" id="ftype">
+        <span class="label">类型</span>
+        <button class="chip active" data-v="all">全部</button>
+        <button class="chip" data-v="creature">生物</button>
+        <button class="chip" data-v="item">物品</button>
+        <button class="chip" data-v="slugcat">蛞蝓猫</button>
+      </div>
+      <div class="fgroup" id="ftag"><span class="label">态度</span></div>
+    </div>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th style="width:186px">代码内 ID</th>
+        <th style="width:120px">中文名</th>
+        <th style="width:150px">英文名</th>
+        <th style="width:150px">态度</th>
+        <th style="width:92px">强度</th>
+        <th>猫崽的看法</th>
+      </tr>
+    </thead>
+    <tbody id="tb"></tbody>
+  </table>
+
+  <footer>
+    「态度」是按猫崽的心理活动归的类：<b>恐惧</b>（想跑）、<b>警惕</b>（不敢背对它）、<b>厌恶</b>（不想碰）、<b>想吃</b>（饿）、<b>喜爱</b>（想靠近）、<b>依恋</b>（怕失去）、<b>好奇</b>（想弄明白）、<b>好玩</b>（想再玩一次）、<b>珍贵</b>（要藏起来）、<b>无聊</b>（懒得理）、<b>敬畏</b>（看不懂但知道很大）。<br>
+    强度 ★1–5 是猫崽自己给的，不是客观危险度——所以它对爆米花和对蓝果都是 ★5，对秃鹫也是 ★5。<br>
+    代码内 ID 与中英文名沿用《雨世界 生物与物品代码名对照表》，来源为 Rain World Wiki 与 Modding Wiki。
+  </footer>
+</div>
+
+<script>
+const DATA = [["White", "求生者", "Survivor", "依恋", 5, "这是我妈妈。她走路不快，但从来不会把我一个人丢下。", "vanilla", "slugcat", "蛞蝓猫"], ["Yellow", "僧侣", "Monk", "依恋", 4, "妈妈脚步轻轻的，连睡着的蜥蜴都吵不醒。小动物们都喜欢她", "vanilla", "slugcat", "蛞蝓猫"], ["Red", "猎手", "Hunter", "依恋", 5, "妈妈很凶，嘴里总叼着矛。可她分肉给我的时候最温柔。", "vanilla", "slugcat", "蛞蝓猫"], ["Gourmand", "饕餮", "Gourmand", "依恋 · 想吃", 4, "胖胖的妈妈，肚子像个仓库，什么都能变出吃的。", "msc", "slugcat", "蛞蝓猫"], ["Artificer", "工匠", "Artificer", "依恋 · 警惕", 4, "妈妈身上有火药味，抱我的时候会“砰”一下，我不敢贴太近。", "msc", "slugcat", "蛞蝓猫"], ["Rivulet", "溪流", "Rivulet", "依恋 · 好玩", 4, "妈妈游得比我快好多，我扒在她背上，一路都在吐泡泡。", "msc", "slugcat", "蛞蝓猫"], ["Spearmaster", "矛大师", "Spearmaster", "依恋", 4, "这个妈妈没有嘴，她亲不了我。她用细细的手戳我脑袋时，我知道那是摸摸。", "msc", "slugcat", "蛞蝓猫"], ["Saint", "圣徒", "Saint", "敬畏 · 依恋", 4, "妈妈飘起来的时候我也想飘。她摸我的时候，连雪都不冷了。", "msc", "slugcat", "蛞蝓猫"], ["Inv", "怪猫 / ???", "Inv", "好奇 · 警惕", 3, "这个妈妈会突然倒下又站起来，我总觉得她是坏掉的玩具。", "msc", "slugcat", "蛞蝓猫"], ["Watcher", "观望者", "The Watcher", "好奇 · 依恋", 3, "妈妈有时候会不见，只剩一只眼睛在黑里看着我。", "tw", "slugcat", "蛞蝓猫"], ["Green", "绿蜥蜴", "Green Lizard", "恐惧", 3, "大绿蜥蜴，走路咚咚响。非常重，咬起我来可疼了，我可不行靠近它。", "vanilla", "creature", "原版生物·敌对"], ["Pink", "粉蜥蜴", "Pink Lizard", "恐惧", 4, "最常追我的那个，它会爬杆子，所以躲在杆子上也不安全。它跑不过我，可它咬人好疼。", "vanilla", "creature", "原版生物·敌对"], ["Blue", "蓝蜥蜴", "Blue Lizard", "恐惧", 4, "会突然爬墙壁，但是很脆弱，躲在哪里都不安全，不如把它打败。", "vanilla", "creature", "原版生物·敌对"], ["White", "白蜥蜴", "White Lizard", "恐惧", 5, "趴在墙上跟墙一个颜色。我一回头，它就在我鼻子前面。", "vanilla", "creature", "原版生物·敌对"], ["Black", "黑蜥蜴", "Black Lizard", "恐惧", 4, "它看不见我。可我只要发出一点声音，它立刻就知道我在哪。", "vanilla", "creature", "原版生物·敌对"], ["Yellow", "金蜥蜴", "Yellow Lizard", "恐惧", 4, "它们总是一起叫，叫完就一起冲过来，像一群。", "vanilla", "creature", "原版生物·敌对"], ["Cyan", "青蜥蜴", "Cyan Lizard", "恐惧", 3, "会从墙上弹过来，还会爬墙，躲在哪里都会被逮住，快跑啊！", "vanilla", "creature", "原版生物·敌对"], ["Red", "烈焰蜥蜴", "Red Lizard", "恐惧", 5, "远远听见那一声吼我就腿软。那是最可怕的猎手，只要一下就能咬死我。", "vanilla", "creature", "原版生物·敌对"], ["Salamander", "蝾螈", "Salamander", "恐惧", 3, "水里的那个。我以为是鱼，结果它有牙。", "vanilla", "creature", "原版生物·敌对"], ["Vulture", "秃鹫", "Vulture", "恐惧", 5, "天上掉下来的黑影，连蜥蜴都害怕它。它抓我往天上飞，我要赶快找到狭窄的地方。", "vanilla", "creature", "原版生物·敌对"], ["KingVulture", "魔王鹫", "King Vulture", "恐惧", 5, "比秃鹫还大，头上两根尖尖。快躲起来啊，别被它的尖尖扎到了！", "vanilla", "creature", "原版生物·敌对"], ["PoleMimic", "拟态草", "Pole Plant", "警惕", 4, "长得像一根能爬的杆子……不能爬，不能爬，不能爬。", "vanilla", "creature", "原版生物·敌对"], ["Tentacle", "红树", "Monster Kelp", "恐惧", 4, "红色的软叶子，会突然卷起来。我被卷过一次，差点就被吃了。不过它只能看到动来动去的东西。", "vanilla", "creature", "原版生物·敌对"], ["Leech", "红水蛭", "Red Leech", "厌恶", 4, "小小的红色软糖，一沾上就往我身上钻，甩都甩不掉。", "vanilla", "creature", "原版生物·敌对"], ["SeaLeech", "海水蛭", "Sea Leech", "厌恶", 4, "比红的大一点，咬住我腿的时候，整条腿都麻了。", "vanilla", "creature", "原版生物·敌对"], ["Centipede", "蜈蚣", "Centipede", "恐惧", 3, "长长的，带电。我咬它一口会被电得跳起来。", "vanilla", "creature", "原版生物·敌对"], ["Centiwing", "飞蜈蚣", "Centiwing", "恐惧", 3, "会飞的那种，掉下来的火花亮亮的，我不敢接。", "vanilla", "creature", "原版生物·敌对"], ["RedCentipede", "烈焰蜈蚣", "Red Centipede", "恐惧", 5, "红得发亮的大家伙。妈妈说那不是食物，是灾难。", "vanilla", "creature", "原版生物·敌对"], ["Spider", "小蜘蛛", "Coalescipede", "厌恶", 4, "一只不可怕。很多只就像黑色的水，会把我整个盖住。", "vanilla", "creature", "原版生物·敌对"], ["BigSpider", "狼蛛", "Big Spider", "恐惧", 3, "八条腿，会把我举起来。我讨厌被举起来。", "vanilla", "creature", "原版生物·敌对"], ["SpitterSpider", "烈焰狼蛛", "Spitter Spider", "恐惧", 4, "会吐毒镖。被毒镖射中以后，我就动不了了。", "vanilla", "creature", "原版生物·敌对"], ["DropBug", "落网虫", "Dropwig", "恐惧", 5, "天花板上那块木头突然变成一个虫子——我最怕这个。", "vanilla", "creature", "原版生物·敌对"], ["Bro", "黄长腿菌", "Brother Long Legs", "恐惧", 4, "一团会走的黄色毛线团，碰到就疼。我从来不靠近。", "vanilla", "creature", "原版生物·敌对"], ["Daddy", "蓝长腿菌", "Daddy Long Legs", "恐惧", 5, "比黄的还大。妈妈说，被它抓住就再也回不了家。", "vanilla", "creature", "原版生物·敌对"], ["Lev", "利维坦", "Leviathan", "恐惧", 5, "水里最大的那张嘴。听到“哗”的一声，我就往岸上爬。", "vanilla", "creature", "原版生物·敌对"], ["Miros", "钢鸟", "Miros Bird", "恐惧", 4, "腿很长，跑起来像在敲铁皮。它啄一下，地上就有个洞。我可不想它逮住", "vanilla", "creature", "原版生物·敌对"], ["WormGrass", "舌草", "Worm Grass", "恐惧", 4, "地上那些细细的草，会突然站起来把我卷走。", "vanilla", "creature", "原版生物·敌对"], ["Overseer", "监视者", "Overseer", "好奇", 3, "一只黄色的小眼睛跟着我。它不咬人，可我总觉得它在给我打分。", "vanilla", "creature", "原版生物·中立"], ["CicadaA", "蝉乌贼", "Squidcada", "好玩", 4, "抱住它能飞一点点，就是它老想把我甩下去。", "vanilla", "creature", "原版生物·中立"], ["Needle", "大面条蝇", "Adult Noodlefly", "警惕 · 恐惧", 3, "长长的，会飞。我碰过它的宝宝，它追了我一整条走廊。", "vanilla", "creature", "原版生物·中立"], ["Worm", "垃圾虫", "Garbage Worm", "好奇 · 无聊", 2, "从洞里探出个头。我一靠近它就缩回去，永远碰不到。", "vanilla", "creature", "原版生物·中立"], ["Snail", "波动龟", "Snail", "好玩", 4, "敲一下会“嗡”的一声，把周围的东西都震开，很好玩。", "vanilla", "creature", "原版生物·中立"], ["Scavenger", "拾荒者", "Scavenger", "警惕 · 珍贵", 3, "会用果子跟我换东西。它们很吵，有些会攻击我，有些会给我送礼物。", "vanilla", "creature", "原版生物·中立"], ["LanternMouse", "光鼠", "Lantern Mouse", "喜爱", 4, "软软的、会发光的果子精。抱着它睡觉最舒服。", "vanilla", "creature", "原版生物·中立"], ["JetFish", "蛙鱼", "Jetfish", "好玩", 4, "在水里拽着我跑，比我自己游快多了。就是方向不由我。", "vanilla", "creature", "原版生物·中立"], ["TubeWorm", "管虫", "Grapple Worm", "好玩", 5, "捏一下它的肚子，就可以“咻”地飞出去。妈妈最喜欢这个。", "vanilla", "creature", "原版生物·中立"], ["Deer", "雨鹿", "Rain Deer", "敬畏 · 好奇", 3, "好高好高，腿像柱子。它低头舔我的时候，我差点被舔倒。", "vanilla", "creature", "原版生物·中立"], ["Fly", "蝠蝇", "Batfly", "想吃", 3, "飞来飞去的小点心，跳一下就抓到了。", "vanilla", "creature", "原版生物·可食用"], ["EggBug", "蛋虫", "Eggbug", "想吃", 4, "圆滚滚的，打它会掉蛋。妈妈说不要欺负它，可蛋真好吃。", "vanilla", "creature", "原版生物·可食用"], ["SmallNeedleWorm", "小面条蝇", "Infant Noodlefly", "想吃 · 警惕", 3, "小小的，会哭。我一碰它，它妈妈就来了。", "vanilla", "creature", "原版生物·可食用"], ["SmallCentipede", "幼年蜈蚣", "Infant Centipede", "想吃", 3, "小小一条，会电人，但也能吃。我一般都直接吞。", "vanilla", "creature", "原版生物·可食用"], ["VultureGrub", "射线虫", "Vulture Grub", "想吃 · 警惕", 2, "它会告诉秃鹫我们在哪。要赶紧把它打死吃掉。", "vanilla", "creature", "原版生物·可食用"], ["Hazer", "墨鱼", "Hazer", "好玩", 4, "捏一下喷出一团黑粘液，什么都看不见。很好用，也很好玩。", "vanilla", "creature", "原版生物·可食用"], ["JellyFish", "水母", "Jellyfish", "想吃 · 警惕", 3, "会电人的果冻。我不敢咬，可妈妈说饿了就得吃。", "vanilla", "creature", "原版生物·可食用"], ["Echo", "回响", "Echo", "敬畏", 5, "一个金色的影子。碰一下我的脑袋，世界就亮了一层。它说话我听不懂。", "vanilla", "creature", "原版生物·特殊"], ["Guardian", "守卫", "Guardian", "敬畏 · 恐惧", 4, "很高很高，没有脸。它不让我过去，可它没有追我。", "vanilla", "creature", "原版生物·特殊"], ["VoidWorm", "虚空蠕虫", "Void Worm", "敬畏 · 恐惧", 5, "黑色的大东西在里面游。我一点都不想靠近那个地方。", "vanilla", "creature", "原版生物·特殊"], ["（维基未标注）", "电路蟹", "Circuit Crab", "无聊 · 好奇", 2, "会走的小方块，上面有光在跑。我摸了一下，被电了。", "tw", "creature", "原版生物·特殊"], ["Caramel", "焦糖蜥蜴", "Caramel Lizard", "恐惧", 3, "肥肥的，会朝我吐口水，黏黏的，甩不掉。偶尔还会跳起来咬我。", "msc", "creature", "倾盆大雨生物·敌对"], ["Eel", "鳗蜥蜴", "Eel Lizard", "恐惧", 3, "在水里游的像蛇一样的蜥蜴。我一低头，它就在脚边，从水里冒出来看我。", "msc", "creature", "倾盆大雨生物·敌对"], ["Strawberry", "草莓蜥蜴", "Strawberry Lizard", "警惕", 3, "小小红红的，会吐舌头黏住我。它黏住我的时候像一把夹子。", "msc", "creature", "倾盆大雨生物·敌对"], ["JungleLeech", "丛林水蛭", "Jungle Leech", "厌恶", 4, "比红水蛭更黏。吸住我以后，我会慢慢变虚。", "msc", "creature", "倾盆大雨生物·敌对"], ["AquaCenti", "水蜈蚣", "Aquapede", "恐惧", 4, "水里的长虫，电得整片水都亮起来。看到它要远离水。", "msc", "creature", "倾盆大雨生物·敌对"], ["MotherSpider", "蛛母", "Mother Spider", "恐惧", 3, "背上背着好多小蜘蛛。我打它一下，背上就散开了。", "msc", "creature", "倾盆大雨生物·敌对"], ["TerrorLongLegs", "紫长腿菌", "Terror Long Legs", "恐惧", 5, "紫色的黑线团，比蓝的还凶。它一来，整条走廊都在抖。", "msc", "creature", "倾盆大雨生物·敌对"], ["MirosVulture", "钢秃鹫", "Miros Vulture", "恐惧", 5, "钢鸟和秃鹫混在一起的样子。会飞，还会射东西，我最怕它。", "msc", "creature", "倾盆大雨生物·敌对"], ["Stowaway", "偷渡者（藤壶）", "Stowaway", "恐惧", 4, "天花板上垂下来几根线，抓住我就往上拉。", "msc", "creature", "倾盆大雨生物·敌对"], ["BigJellyFish", "巨型水母", "Giant Jellyfish", "恐惧", 4, "大得像一间屋子。我绕着它走，怕它突然亮起来。", "msc", "creature", "倾盆大雨生物·敌对"], ["Inspector", "监察者", "Inspector", "恐惧", 4, "三个脑袋的大眼睛。它不怎么理我，但是我还是害怕。", "msc", "creature", "倾盆大雨生物·中立"], ["Elite", "精英拾荒者", "Elite Scavenger", "警惕", 3, "穿得比别的拾荒者气派，手里的东西也更凶。", "msc", "creature", "倾盆大雨生物·中立"], ["Yeek", "跃客", "Yeek", "警惕", 3, "会到处跳来跳去，碰一下它还会蹦蹦跳跳地跑掉。", "msc", "creature", "倾盆大雨生物·中立"], ["SmallCentiwing（维基未标注）", "幼年飞蜈蚣", "Infant Centiwing", "好奇 · 恐惧", 2, "小小的飞行电蜈蚣，飞起来歪歪扭扭。很可爱，也很疼。", "msc", "creature", "倾盆大雨生物·可食用"], ["SlugNPC", "蛞蝓猫幼崽", "Slugpup", "喜爱 · 依恋", 5, "跟我一样的小家伙。它害怕的时候会紧紧抓我的手。", "msc", "creature", "倾盆大雨生物·特殊"], ["（维基未标注）", "拾荒者酋长", "Chieftain Scavenger", "敬畏 · 恐惧", 4, "坐在高台上的拾荒者，戴着有珍珠的面具。谁都不敢靠近它。", "msc", "creature", "倾盆大雨生物·特殊"], ["HunterDaddy", "猎手长腿菌", "Hunter Long Legs", "恐惧", 5, "妈妈以前的样子，变成了红线团……我不想看。", "msc", "creature", "倾盆大雨生物·特殊"], ["FireBug", "火虫", "Firebug", "恐惧 · 想吃", 3, "浑身冒火的小虫。打它会掉红色的蛋，那蛋会炸。", "msc", "creature", "倾盆大雨生物·特殊"], ["Train", "火车蜥蜴", "Train Lizard", "恐惧", 5, "像一列会咬人的车。它冲过来的时候，地板都在响。", "msc", "creature", "倾盆大雨生物·特殊"], ["（无生成代码）", "稻草裂片", "Sliver of Straw", "敬畏 · 无聊", 4, "妈妈们说起她的时候都很小声。我什么都不懂。", "msc", "creature", "倾盆大雨生物·特殊"], ["Indigo", "靛蓝蜥蜴", "Indigo Lizard", "恐惧", 3, "会往我脸上吐彩色的口水。吐到以后，我就看不见它了。", "tw", "creature", "观望者生物·敌对"], ["Basilisk", "蛇怪蜥蜴", "Basilisk", "恐惧", 4, "呼吸的时候会冒绿色的雾，闻到就头晕。", "tw", "creature", "观望者生物·敌对"], ["Blizzard", "暴雪蜥蜴", "Blizzard Lizard", "恐惧", 4, "白色的，在雪里几乎看不见，只有牙是亮的。", "tw", "creature", "观望者生物·敌对"], ["PeachLizard", "桃蜥蜴", "Peach Lizard", "好奇", 3, "粉橘色的，安安静静。我差点就摸到它了。", "tw", "creature", "观望者生物·敌对"], ["Loach", "泥鳅", "Loach", "好奇 · 想吃", 3, "水底下一扭一扭，抓不住，滑得像刚洗过。", "tw", "creature", "观望者生物·敌对"], ["Angler", "琵琶鱼", "Angler", "恐惧", 4, "头上挂着一盏小灯。我被那盏灯骗过去过一次。", "tw", "creature", "观望者生物·敌对"], ["（维基未标注）", "沙虫", "Sand Worm", "恐惧", 5, "沙子里突然竖起一根，我连它长什么样都没看清。", "tw", "creature", "观望者生物·敌对"], ["LocustCloud（场景对象）", "蝗虫", "Locust", "恐惧", 4, "一大片飞过来，把光都遮住了。我抱着头蹲在地上。", "tw", "creature", "观望者生物·敌对"], ["Templar", "拾荒者圣堂武士", "Scavenger Templar", "敬畏", 3, "比普通拾荒者更高，站得笔直。看着看着我也想站直。", "tw", "creature", "观望者生物·中立"], ["Disciple", "拾荒者门徒", "Scavenger Disciple", "警惕", 2, "瘦瘦的拾荒者，扔回旋镖特别准。", "tw", "creature", "观望者生物·中立"], ["BigMoth", "大蛾", "Big Moth", "好奇", 4, "翅膀上有眼睛一样的花纹。它扇一下，风好大。", "tw", "creature", "观望者生物·中立"], ["MothGrub", "蛾螬", "Moth Grub", "想吃 · 好奇", 3, "胖胖的，软软的。看着就想咬一口——但不敢。", "tw", "creature", "观望者生物·中立"], ["SmallMoth", "小蛾", "Small Moth", "喜爱", 3, "小小的，落在我的鼻子上，痒。", "tw", "creature", "观望者生物·中立"], ["SkyWhale", "天空鲸", "Sky Whale", "敬畏", 5, "从头顶慢慢游过去，像一整片会叫的天。", "tw", "creature", "观望者生物·中立"], ["PlacedBotWorm（放置名）", "箱虫", "Box Worm", "好奇 · 想吃", 4, "会往外吐小火苗。掏一掏，能掏出亮亮的小虫。", "tw", "creature", "观望者生物·中立"], ["PlacedFireSprite（放置名）", "火精灵", "Fire Sprite", "喜爱 · 恐惧", 3, "飘在空中的小火点。凑近会被烫，可它真好看。", "tw", "creature", "观望者生物·中立"], ["DrillCrab", "钻蟹", "Drill Crab", "警惕 · 好奇", 3, "壳会转，把地面钻得都是洞。我不敢把手放下去。", "tw", "creature", "观望者生物·中立"], ["（维基未标注）", "塔蟹", "Tower Crab", "警惕 · 无聊", 3, "很高的一摞壳。走过去的时候，我总觉得它会塌。", "tw", "creature", "观望者生物·中立"], ["（维基未标注）", "蝗虫鲸", "Locust Whale", "敬畏 · 恐惧", 4, "和蝗虫一起飞过来的大家伙，声音像下雨。", "tw", "creature", "观望者生物·中立"], ["Tardigrade", "水熊虫", "Tardigrade", "想吃 · 好奇", 4, "胖胖的，慢吞吞。用矛戳它，矛会变成紫色的。", "tw", "creature", "观望者生物·可食用"], ["Barnacle", "藤壶", "Barnacle", "厌恶", 3, "长在墙上的小壳，会伸出舌头把我勾过去。", "tw", "creature", "观望者生物·可食用"], ["SandGrub（沙螬洞 SandGrubHole）", "沙螬", "Sand Grub", "想吃", 4, "从沙里拱出来，白白胖胖。妈妈说这个能吃。", "tw", "creature", "观望者生物·可食用"], ["Frog", "青蛙", "Frog", "厌恶", 3, "会跳到我背上黏着不走，甩也甩不掉。", "tw", "creature", "观望者生物·可食用"], ["PlacedRats（放置名）", "老鼠", "Rat", "想吃", 4, "小小的，跑得慢，很好抓。比蝠蝇好抓多了。", "tw", "creature", "观望者生物·可食用"], ["（维基未标注）", "震骨者", "Bone Shaker", "厌恶 · 无聊", 2, "会响。骨头一样的东西咔咔地动，我听了牙酸。", "tw", "creature", "观望者生物·特殊"], ["（维基未标注）", "腐化蜥蜴", "Rot Lizard", "恐惧 · 厌恶", 4, "身上长着黑线，看着就疼。我绕着它走。", "tw", "creature", "观望者生物·特殊"], ["RotBehemoth", "腐化巨兽 / 腐化泥鳅", "Rot Behemoth / Rot Loach", "恐惧", 5, "一大团黑的，什么都不像，可它会追我。", "tw", "creature", "观望者生物·特殊"], ["（维基未标注）", "腐化蠕虫", "Rot Worm", "厌恶", 4, "从地里钻出来，一节一节的，像坏掉的肠子。", "tw", "creature", "观望者生物·特殊"], ["（维基未标注）", "涟漪游魂 / 水母 / 阿米巴 / 蜘蛛", "Ripple Spawn / Jellies / Amoebas / Spiders", "好奇 · 恐惧", 3, "水一样的东西在动。我伸手过去，手就穿过去了。", "tw", "creature", "观望者生物·特殊"], ["（维基未标注）", "王子 / 编织者", "The Prince / The Weaver", "好奇 · 敬畏", 4, "它们看着我，好像知道我是谁。可我不认识它们。", "tw", "creature", "观望者生物·特殊"], ["Rock", "石头 / 垃圾", "Rock (Rubbish)", "好玩", 3, "我学会扔的第一件东西。砸蜥蜴的脑袋会“咚”一声。", "vanilla", "item", "原版物品"], ["Spear", "矛", "Spear", "珍贵", 4, "长长的，会扎人。妈妈会拿它保护我，我也要拿他保护妈妈。", "vanilla", "item", "原版物品"], ["ExplosiveSpear", "炸矛", "Explosive Spear", "好玩 · 恐惧", 5, "扔出去会“嘭”。我被吓哭过一次，后来就爱上了它。", "vanilla", "item", "原版物品"], ["ScavengerBomb", "手雷", "Grenade", "恐惧 · 好玩", 4, "圆圆的，黑黑的，会炸。危险，我更希望是妈妈拿着它。", "vanilla", "item", "原版物品"], ["SporePlant", "蜂巢", "Beehive", "厌恶 · 恐惧", 4, "会飞出一堆会咬人的小虫，把我黏在地上动不了。", "vanilla", "item", "原版物品"], ["FlareBomb", "闪光果", "Flashbang", "厌恶", 3, "一摔就亮。亮完我什么都看不见，还一直流眼泪。", "vanilla", "item", "原版物品"], ["PuffBall", "烟雾果", "Spore Puff", "珍贵", 3, "捏爆会冒烟。蜂巢闻了就睡着，我就能把它摘下来。那个大鹿喜欢吃它。", "vanilla", "item", "原版物品"], ["FirecrackerPlant", "鞭炮草", "Cherrybomb", "好玩 · 恐惧", 4, "扔出去噼里啪啦。蜥蜴听了就跑，我也吓得一抖。", "vanilla", "item", "原版物品"], ["DangleFruit", "蓝果", "Blue Fruit", "想吃", 5, "甜甜的，挂在高处。够不到就用石头砸下来。", "vanilla", "item", "原版物品"], ["WaterNut", "泡水果", "Bubble Fruit", "想吃", 4, "要泡在水里才会“啵”一下打开。打开了才好吃。", "vanilla", "item", "原版物品"], ["SeedCob", "爆米花", "Popcorn Plant", "想吃", 5, "用矛戳开，能吃一整天。我喜欢蹲在它下面吃到撑。", "vanilla", "item", "原版物品"], ["SlimeMold", "黏菌", "Slime Mold", "想吃", 2, "墙上会发光的一小坨，黏黏的。饿的时候什么都好吃。", "vanilla", "item", "原版物品"], ["Mushroom", "迷幻菇", "Mushroom", "好奇 · 喜爱", 3, "吃了以后世界变慢。妈妈的动作像在水里。", "vanilla", "item", "原版物品"], ["KarmaFlower", "业力花", "Karma Flower", "珍贵", 4, "我死掉的地方会长出它。妈妈说，那是第二次机会。", "vanilla", "item", "原版物品"], ["DataPearl", "珍珠", "Pearl", "珍贵 · 无聊", 3, "亮亮的圆球。我舔过，不好吃。可拾荒者超级喜欢它。", "vanilla", "item", "原版物品"], ["NeedleEgg", "面条蝇卵", "Noodlefly Egg", "喜爱", 4, "抱着它睡一觉，会孵出小小的面条蝇。但是它的妈妈不想我拿着它。", "vanilla", "item", "原版物品"], ["Lantern", "灯笼", "Lantern", "依恋 · 珍贵", 5, "暖暖的，亮亮的。抱着它睡觉，连噩梦都少了。", "vanilla", "item", "原版物品"], ["VultureMask", "秃鹫面具", "Vulture Mask", "珍贵 · 恐惧", 3, "戴上它，蜥蜴会以为我是秃鹫。可我自己也害怕。", "vanilla", "item", "原版物品"], ["Flylure", "蝠蝇草", "Batnip", "好奇 · 珍贵", 3, "红红的小草。它的叶子摇摇晃晃，一会儿就有蝠蝇来。", "vanilla", "item", "原版物品"], ["BubbleGrass", "气泡草", "Bubble Weed", "珍贵", 3, "捏一下会鼓起来，丢出去还会飘起了。能让我在水里多待一会儿。", "vanilla", "item", "原版物品"], ["OverseerCarcass", "监视者眼球", "Overseer Eye", "珍贵", 4, "会掉出来的一颗小眼睛，还拖着两根线。拾荒者很想要。", "vanilla", "item", "原版物品"], ["OracleSwarmer", "神经元", "Neuron Fly", "珍贵", 5, "白色的、会发光的小东西。吃掉以后，我一直在发光。", "vanilla", "item", "原版物品"], ["EggBugEgg", "蛋虫卵", "Eggbug Egg", "想吃", 4, "从蛋虫身上掉下来的，小小一颗，一口一个。", "vanilla", "item", "原版物品"], ["LillyPuck", "百合花灯", "Lilypuck", "好奇 · 珍贵", 3, "水里会发光的花。摘下来以后，它就慢慢不亮了。", "msc", "item", "倾盆大雨物品"], ["GooieDuck", "悬垂霉菌", "Gooieduck", "想吃", 3, "挂在墙上一团。掰开会“噗”，有点臭，但很顶饿。", "msc", "item", "倾盆大雨物品"], ["DandelionPeach", "蒲公英桃", "Dandelion Peach", "想吃 · 好玩", 4, "轻飘飘的，一碰就飞走。咬开里面全是黏黏的甜。", "msc", "item", "倾盆大雨物品"], ["GlowWeed", "发光果", "Glow Weed", "想吃 · 好奇", 2, "亮亮的草，一咬像是脆的空气和水，嚼起来像在吃一盏灯。", "msc", "item", "倾盆大雨物品"], ["Seed", "种子", "Seed", "想吃", 4, "爆米花被戳碎以后掉的小粒，一颗一口，脆脆的。", "msc", "item", "倾盆大雨物品"], ["ElectricSpear", "电矛", "Electric Spear", "恐惧 · 珍贵", 4, "扎进去会“滋滋”放电，扎过的地方会亮一下。", "msc", "item", "倾盆大雨物品"], ["HellSpear", "火矛", "Fire Spear", "恐惧 · 珍贵", 5, "红色的尖，扎谁谁就烫的冒烟。我拿着它的时候，手一直在抖。", "msc", "item", "倾盆大雨物品"], ["SingularityBomb", "奇点炸弹", "Singularity Bomb", "恐惧", 5, "扔出去以后，周围的东西都被吸过去。它太可怕了，会杀死吸进去的东西。", "msc", "item", "倾盆大雨物品"], ["Rifle", "玩笑步枪", "Joke Rifle", "好玩", 5, "把东西塞进去，“砰”地打出来。我最喜欢塞珍珠。", "msc", "item", "倾盆大雨物品"], ["FireEgg", "火虫卵", "Fire Egg", "恐惧 · 想吃", 3, "红的，温的，剧烈摇晃就会粘在墙壁上，然后炸开。", "msc", "item", "倾盆大雨物品"], ["OverseerCarcass", "监察者眼球", "Inspector Eye", "珍贵", 5, "大大的眼睛，比监视者的大好多。拾荒者愿意拿很多换。", "msc", "item", "倾盆大雨物品"], ["EnergyCell", "质量稀释电池", "Rarefaction Cell", "珍贵 · 好奇", 5, "很重，抱着它我就跳不动。可一按，我就能飞得很高。", "msc", "item", "倾盆大雨物品"], ["MoonCloak", "斗篷", "Cloak", "喜爱", 3, "一块软软的布。穿上妈妈说好看，可惜不是给我的。", "msc", "item", "倾盆大雨物品"], ["KingMask", "酋长面具", "Chieftain Scavenger Mask", "珍贵 · 恐惧", 4, "有角的壳。戴上它，所有拾荒者都跑光了。", "msc", "item", "倾盆大雨物品"], ["Boomerang", "回旋镖", "Boomerang", "好玩", 5, "扔出去会自己飞回来。我要伸手接，接不到就砸我的脸。", "tw", "item", "观望者物品"], ["（无独立类型：矛的带毒状态）", "毒矛", "Poison Spear", "厌恶 · 恐惧", 4, "紫色的尖。戳一下别人，别人会慢慢软下去。我不敢碰尖。", "tw", "item", "观望者物品"], ["GraffitiBomb", "涂鸦炸弹", "Graffiti Bomb", "好玩", 4, "爆开一团彩色的雾。我被染过一身，洗了好几天。", "tw", "item", "观望者物品"], ["Pomegranate", "石榴", "Pomegranate", "想吃", 4, "挂在墙与墙之间的大果子。砸开以后，能吃一整个循环。", "tw", "item", "观望者物品"], ["FireSpriteLarva", "火精灵幼体", "Fire Sprite Larva", "想吃", 3, "从箱虫肚子里拽出来的小亮球，温温的，能吃。", "tw", "item", "观望者物品"], ["RottenDangleFruit", "腐化蓝果", "Rot Fruit", "厌恶 · 想吃", 2, "蓝果长了黑线。看着不能吃，可它闻起来还是甜的。", "tw", "item", "观望者物品"], ["RottenSeedCob", "腐化爆米花", "Rotcorn Plant", "厌恶", 3, "爆米花烂掉了。我不敢戳开，怕里面也是黑的。", "tw", "item", "观望者物品"], ["BallToy", "玩具球", "Ball Toy", "好玩", 5, "会弹来弹去的小球。我扔了一下午。", "tw", "item", "观望者物品"], ["SoftToy", "毛绒玩偶", "Soft Toy", "依恋", 5, "软软的，可以抱着睡觉。它比我大。", "tw", "item", "观望者物品"], ["SpinToy", "陀螺", "Spinning Top", "好玩", 4, "转起来的时候，上面的图案会变。我盯着看会头晕。", "tw", "item", "观望者物品"], ["WeirdToy", "奇怪的玩具", "Weird Toy", "恐惧 · 好奇", 3, "五个脑袋上都长着眼睛。捏一下它会叫。我有点怕它。", "tw", "item", "观望者物品"]];
+const TAGS = ["恐惧", "警惕", "厌恶", "想吃", "喜爱", "依恋", "好奇", "好玩", "珍贵", "无聊", "敬畏"];
+const COLOR = {
+  "恐惧":["#fdecea","#b3261e"],
+  "警惕":["#fdf1e0","#a9651a"],
+  "厌恶":["#f0f1ea","#6f7350"],
+  "想吃":["#fdeee4","#b4491f"],
+  "喜爱":["#fceef4","#b02a67"],
+  "依恋":["#f2ecfd","#6d3bbf"],
+  "好奇":["#e8f5f3","#0f6f66"],
+  "好玩":["#eaf0fe","#2551b8"],
+  "珍贵":["#fbf3dc","#9a7013"],
+  "无聊":["#f1f2f4","#6b7280"],
+  "敬畏":["#edeafa","#4338ca"]
+};
+const dlcName = {vanilla:"原版", msc:"倾盆大雨", tw:"观望者"};
+const rows = DATA.map(d=>({id:d[0],zh:d[1],en:d[2],tags:d[3],star:d[4],view:d[5],dlc:d[6],type:d[7],cat:d[8]}));
+
+const tb = document.getElementById("tb");
+const q = document.getElementById("q");
+const countEl = document.getElementById("count");
+let fDlc="all", fType="all", fTag="all";
+
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
+function pill(t){
+  const c = COLOR[t] || ["#f1f2f4","#555"];
+  return '<span class="tag" style="background:'+c[0]+';color:'+c[1]+';border-color:'+c[0]+'">'+esc(t)+'</span>';
+}
+function stars(n){
+  let h = '<span class="stars">';
+  for(let i=1;i<=5;i++) h += i<=n ? '★' : '<span class="off">★</span>';
+  return h + '</span>';
+}
+
+// 态度筛选按钮（带数量）
+(function buildTagChips(){
+  const box = document.getElementById("ftag");
+  const cnt = {};
+  rows.forEach(r=>r.tags.split(" · ").forEach(t=>cnt[t]=(cnt[t]||0)+1));
+  const all = document.createElement("button");
+  all.className = "chip active"; all.dataset.v = "all"; all.textContent = "全部";
+  box.appendChild(all);
+  TAGS.forEach(t=>{
+    const b = document.createElement("button");
+    b.className = "chip"; b.dataset.v = t;
+    b.innerHTML = esc(t) + '<span class="n">' + (cnt[t]||0) + '</span>';
+    box.appendChild(b);
+  });
+})();
+
+function render(){
+  const kw = q.value.trim().toLowerCase();
+  const list = rows.filter(r=>{
+    if(fDlc!=="all" && r.dlc!==fDlc) return false;
+    if(fType!=="all" && r.type!==fType) return false;
+    if(fTag!=="all" && !r.tags.split(" · ").includes(fTag)) return false;
+    if(!kw) return true;
+    return (r.zh+" "+r.en+" "+r.id+" "+r.view+" "+r.tags).toLowerCase().includes(kw);
+  });
+
+  if(!list.length){
+    tb.innerHTML = '<tr><td colspan="6" class="empty">猫崽歪着头看你：这个……我不认识。</td></tr>';
+  } else {
+    let html = "", lastCat = "";
+    for(const r of list){
+      if(r.cat !== lastCat){
+        html += '<tr><td colspan="6" style="background:#faf8f5;font-size:12px;color:#8a8279;font-weight:600;letter-spacing:.5px;padding:7px 12px;border-top:1px solid #eeeae4">'+esc(r.cat)+'</td></tr>';
+        lastCat = r.cat;
+      }
+      html += '<tr><td><code>'+esc(r.id)+'</code></td>'+
+              '<td class="zh">'+esc(r.zh)+'</td>'+
+              '<td class="en">'+esc(r.en)+'</td>'+
+              '<td>'+r.tags.split(" · ").map(pill).join("")+'</td>'+
+              '<td>'+stars(r.star)+'</td>'+
+              '<td class="view">'+esc(r.view)+'</td></tr>';
+    }
+    tb.innerHTML = html;
+  }
+  countEl.textContent = "共 "+list.length+" 条 / 全表 "+rows.length+" 条";
+}
+
+function bindGroup(id, setter){
+  document.getElementById(id).addEventListener("click", e=>{
+    const b = e.target.closest("button"); if(!b) return;
+    [...e.currentTarget.querySelectorAll("button")].forEach(x=>x.classList.remove("active"));
+    b.classList.add("active"); setter(b.dataset.v); render();
+  });
+}
+bindGroup("fdlc", v=>fDlc=v);
+bindGroup("ftype", v=>fType=v);
+bindGroup("ftag", v=>fTag=v);
+q.addEventListener("input", render);
+render();
+</script>
+</body>
+</html>
